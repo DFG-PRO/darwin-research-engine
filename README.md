@@ -2,7 +2,7 @@
 
 Darwin v0.1 is the initial foundation for a research and intelligence engine intended to preserve traceable evidence, validated knowledge, historical context, confidence, outcomes, errors, contradictions, assumptions, and decisions over time.
 
-Current status: **Phase 1.8E research method and orchestration MVP**. This repository provides the technical base, persistent research schema, lifecycle persistence services, deterministic structural claim validation, and a supplied-material research orchestrator. It does not implement web research, evidence extraction, semantic claim validation, confidence scoring, recommendation systems, memory retrieval, or domain intelligence features.
+Current status: **Phase 1.8F external research acquisition layer**. This repository provides the technical base, persistent research schema, lifecycle persistence services, deterministic structural claim validation, a supplied-material research orchestrator, and a controlled external source discovery boundary. It does not implement autonomous research, crawling, evidence extraction, semantic claim validation, confidence scoring, recommendation systems, memory retrieval, or domain intelligence features.
 
 ## What Exists
 
@@ -15,6 +15,7 @@ Current status: **Phase 1.8E research method and orchestration MVP**. This repos
 - Minimal research persistence service layer for lifecycle and traceability operations.
 - Deterministic claim validation service and auditable validation history.
 - Deterministic supplied-material research orchestrator and synthesis records.
+- Provider-agnostic external source discovery with auditable acquisition history.
 - Minimal Typer CLI.
 - Deterministic pytest coverage for imports, configuration, CLI, and database foundation setup.
 - Initial documentation directories and ADRs for decisions made in Phase 1.8A.
@@ -50,6 +51,11 @@ Supported settings:
 - `DARWIN_RESEARCH_METHOD_VERSION`: research method contract version. Defaults to `0.1.0`.
 - `DARWIN_ARTIFACT_ROOT`: root directory for runtime artifacts. Defaults to `artifacts`.
 - `DARWIN_DATABASE_URL`: SQLAlchemy database URL. PostgreSQL with psycopg is the intended database, for example `postgresql+psycopg://darwin:darwin@localhost:5432/darwin`.
+- `DARWIN_EXTERNAL_SEARCH_PROVIDER`: external source discovery provider. Defaults to `fake`; supported values are `fake` and `brave`.
+- `DARWIN_EXTERNAL_SEARCH_TIMEOUT_SECONDS`: HTTP timeout for external search providers. Defaults to `10`.
+- `DARWIN_EXTERNAL_SEARCH_MAX_RETRIES`: bounded retry count for external search providers. Defaults to `1`.
+- `DARWIN_EXTERNAL_SEARCH_USER_AGENT`: User-Agent for HTTP search providers. Defaults to `DarwinResearchEngine/0.1`.
+- `DARWIN_BRAVE_SEARCH_API_KEY`: required only when `DARWIN_EXTERNAL_SEARCH_PROVIDER=brave`.
 
 Do not commit real secrets or local `.env` files.
 
@@ -89,10 +95,13 @@ darwin research --help
 darwin research create-run "Research question"
 darwin research get-run <run-uuid-or-public-id>
 darwin research validate-claim <claim-uuid>
+darwin research acquire "search query" --research-run-id <run-uuid> --provider fake
 darwin research run-manual tests/fixtures/manual_research_complete.json
 ```
 
 These commands require a configured database and call the service layer directly.
+
+`darwin research acquire` discovers source candidates and registers accepted Sources. Provider snippets remain acquisition audit material only; they are not automatically Evidence, Claims, or Conclusions.
 
 ## Tests
 
@@ -132,11 +141,11 @@ Phase 1.8B defines the first domain migration:
 alembic upgrade head
 ```
 
-The current migrations create the core research data model, source lineage fields, claim validation evaluations, explicit human validation events, research framings, research plan items, and synthesis records. They do not provision a database or implement autonomous research.
+The current migrations create the core research data model, source lineage fields, claim validation evaluations, explicit human validation events, research framings, research plan items, synthesis records, acquisition requests, and source candidates. They do not provision a database, crawl content, or implement autonomous research.
 
 ## Architectural Boundary
 
-Darwin v0.1 is documented as a modular monolith with a single orchestrator. Phase 1.8E implements the first deterministic supplied-material orchestrator.
+Darwin v0.1 is documented as a modular monolith with a single orchestrator. Phase 1.8E implemented the first deterministic supplied-material orchestrator. Phase 1.8F adds a provider-agnostic external acquisition layer that can feed registered Sources into the existing manual boundary.
 
 Current v0.1 persistence decisions:
 
@@ -145,5 +154,6 @@ Current v0.1 persistence decisions:
 - No graph database is introduced in v0.1.
 - `pgvector` is not implemented in Phase 1.8A.
 - No multi-agent architecture is introduced in v0.1.
+- External acquisition does not turn provider results into validated evidence or truth.
 
 The current documentation structure reserves directories for future architecture, method, runtime, data model, decisions, and benchmark documentation without populating speculative content.

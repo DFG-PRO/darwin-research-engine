@@ -20,8 +20,10 @@ from darwin.db.models import (
     ResearchRun,
     ResearchRunStatus,
     ResearchSynthesisRecord,
+    SourceType,
 )
 from darwin.orchestration import ManualResearchInput, ResearchOrchestrationError, ResearchOrchestrator
+from darwin.research import ResearchService
 
 
 @pytest.fixture()
@@ -201,6 +203,24 @@ def test_result_preserves_provenance_without_inventing_data(session_factory) -> 
     assert result.source_count == 1
     assert result.evidence_count == 1
     assert len(result.claim_results) == 1
+
+
+def test_manual_orchestrator_can_receive_pre_registered_acquired_sources(session_factory) -> None:
+    with session_factory() as session:
+        acquired_source = ResearchService(session).register_source(
+            source_type=SourceType.WEB_PAGE,
+            canonical_locator="https://example.com/acquired-source",
+        )
+        session.commit()
+        acquired_source_id = acquired_source.id
+
+    data = complete_input().model_dump(mode="json")
+    data["acquired_source_ids"] = [str(acquired_source_id)]
+
+    result = run_orchestrator(session_factory, ManualResearchInput.model_validate(data))
+
+    assert result.source_count == 2
+    assert result.evidence_count == 1
 
 
 def test_failure_rolls_back_invalid_manual_research(session_factory) -> None:

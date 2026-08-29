@@ -96,6 +96,7 @@ class ManualResearchInput(BaseModel):
     research_question: str
     public_id: str | None = None
     framing: FramingInput | None = None
+    acquired_source_ids: list[uuid.UUID] = Field(default_factory=list)
     plan_items: list[PlanItemInput] = Field(default_factory=list)
     sources: list[SourceInput] = Field(default_factory=list)
     evidence: list[EvidenceInput] = Field(default_factory=list)

@@ -70,6 +70,7 @@ class ResearchOrchestrator:
         framing = self._create_framing(research_run, manual_input)
         plan_items = self._create_plan_items(research_run, manual_input.plan_items)
         sources = self._register_sources(manual_input)
+        sources.update(self._load_acquired_sources(manual_input.acquired_source_ids))
         evidence = self._register_evidence(research_run, manual_input, sources, plan_items)
         claims = self._register_claims(research_run, manual_input.claims, evidence)
         conclusions = self._register_conclusions(research_run, manual_input.conclusions)
@@ -173,6 +174,15 @@ class ResearchOrchestrator:
                 metadata=source_input.metadata,
             )
             sources[source_input.source_key] = source
+        return sources
+
+    def _load_acquired_sources(self, source_ids: list[uuid.UUID]) -> dict[str, Source]:
+        sources: dict[str, Source] = {}
+        for source_id in source_ids:
+            source = self.session.get(Source, source_id)
+            if source is None:
+                raise ResearchOrchestrationError(f"Acquired source not found: {source_id}")
+            sources[f"acquired:{source_id}"] = source
         return sources
 
     def _register_evidence(

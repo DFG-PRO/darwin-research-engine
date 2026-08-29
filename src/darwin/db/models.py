@@ -171,6 +171,24 @@ class ResearchCompletionAssessment(str, enum.Enum):
     HUMAN_REVIEW_REQUIRED = "HUMAN_REVIEW_REQUIRED"
 
 
+class AcquisitionStatus(str, enum.Enum):
+    """Execution state for an external source acquisition request."""
+
+    SUCCESS = "SUCCESS"
+    PARTIAL = "PARTIAL"
+    FAILED = "FAILED"
+
+
+class SourceCandidateRegistrationStatus(str, enum.Enum):
+    """Registration outcome for an acquired source candidate."""
+
+    REGISTERED_NEW_SOURCE = "REGISTERED_NEW_SOURCE"
+    REGISTERED_EXISTING_SOURCE = "REGISTERED_EXISTING_SOURCE"
+    DUPLICATE_CANDIDATE = "DUPLICATE_CANDIDATE"
+    NOT_REGISTERED = "NOT_REGISTERED"
+    REGISTRATION_FAILED = "REGISTRATION_FAILED"
+
+
 class ResearchRun(Base):
     """One bounded research investigation."""
 
@@ -211,6 +229,9 @@ class ResearchRun(Base):
     framings: Mapped[list[ResearchFraming]] = relationship(back_populates="research_run")
     plan_items: Mapped[list[ResearchPlanItem]] = relationship(back_populates="research_run")
     synthesis_records: Mapped[list[ResearchSynthesisRecord]] = relationship(
+        back_populates="research_run",
+    )
+    acquisition_requests: Mapped[list[ResearchAcquisitionRequest]] = relationship(
         back_populates="research_run",
     )
 
@@ -262,6 +283,9 @@ class Source(Base):
 
     evidence_items: Mapped[list[Evidence]] = relationship(back_populates="source")
     origin_source: Mapped[Source | None] = relationship(remote_side=[id])
+    acquisition_candidates: Mapped[list[SourceCandidate]] = relationship(
+        back_populates="registered_source",
+    )
 
 
 class Evidence(Base):
@@ -609,3 +633,139 @@ class ResearchSynthesisRecord(Base):
     )
 
     research_run: Mapped[ResearchRun] = relationship(back_populates="synthesis_records")
+
+
+class ResearchAcquisitionRequest(Base):
+    """Auditable external source discovery request for a research run."""
+
+    __tablename__ = "research_acquisition_requests"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    research_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    provider_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    provider_request_id: Mapped[str | None] = mapped_column(String(256))
+    query: Mapped[str] = mapped_column(Text, nullable=False)
+    category: Mapped[str | None] = mapped_column(String(128))
+    requested_source_types: Mapped[list[str]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=list,
+    )
+    freshness_start: Mapped[date | None] = mapped_column(Date)
+    freshness_end: Mapped[date | None] = mapped_column(Date)
+    domain_constraints: Mapped[list[str]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=list,
+    )
+    result_limit: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[AcquisitionStatus] = mapped_column(
+        Enum(AcquisitionStatus, name="acquisition_status"),
+        nullable=False,
+    )
+    executed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    candidate_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    registered_source_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    warning_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    retry_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    request_count: Mapped[int | None] = mapped_column(Integer)
+    usage_units: Mapped[float | None] = mapped_column(Numeric(12, 4))
+    estimated_cost: Mapped[float | None] = mapped_column(Numeric(12, 6))
+    actual_cost: Mapped[float | None] = mapped_column(Numeric(12, 6))
+    warnings: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    errors: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    request_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata",
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    provider_metadata: Mapped[dict[str, Any]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    rate_limit_metadata: Mapped[dict[str, Any]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+
+    research_run: Mapped[ResearchRun] = relationship(back_populates="acquisition_requests")
+    candidates: Mapped[list[SourceCandidate]] = relationship(
+        back_populates="acquisition_request",
+    )
+
+
+class SourceCandidate(Base):
+    """Provider-returned source candidate before evidence or claim extraction."""
+
+    __tablename__ = "source_candidates"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    acquisition_request_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_acquisition_requests.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    provider_candidate_id: Mapped[str | None] = mapped_column(String(256))
+    canonical_locator: Mapped[str] = mapped_column(Text, nullable=False)
+    normalized_locator: Mapped[str] = mapped_column(Text, nullable=False)
+    deduplication_key: Mapped[str] = mapped_column(String(512), nullable=False)
+    title: Mapped[str | None] = mapped_column(Text)
+    publisher: Mapped[str | None] = mapped_column(Text)
+    normalized_domain: Mapped[str | None] = mapped_column(String(255))
+    publication_date: Mapped[date | None] = mapped_column(Date)
+    retrieved_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+    snippet: Mapped[str | None] = mapped_column(Text)
+    provider_rank: Mapped[int | None] = mapped_column(Integer)
+    source_type: Mapped[SourceType | None] = mapped_column(Enum(SourceType, name="source_type"))
+    registration_status: Mapped[SourceCandidateRegistrationStatus] = mapped_column(
+        Enum(
+            SourceCandidateRegistrationStatus,
+            name="source_candidate_registration_status",
+        ),
+        nullable=False,
+        default=SourceCandidateRegistrationStatus.NOT_REGISTERED,
+    )
+    duplicate_of_candidate_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("source_candidates.id", ondelete="RESTRICT"),
+    )
+    registered_source_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("sources.id", ondelete="RESTRICT"),
+    )
+    provider_metadata: Mapped[dict[str, Any]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+
+    acquisition_request: Mapped[ResearchAcquisitionRequest] = relationship(
+        back_populates="candidates",
+    )
+    duplicate_of_candidate: Mapped[SourceCandidate | None] = relationship(remote_side=[id])
+    registered_source: Mapped[Source | None] = relationship(
+        back_populates="acquisition_candidates",
+    )

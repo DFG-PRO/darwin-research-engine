@@ -2,6 +2,7 @@
 
 from darwin.db.base import Base
 from darwin.db.models import (
+    AcquisitionStatus,
     Claim,
     ClaimEvidence,
     ClaimEvidenceRelation,
@@ -25,13 +26,17 @@ from darwin.db.models import (
     ResearchRunStatus,
     ResearchSynthesisRecord,
     Source,
+    SourceCandidate,
+    SourceCandidateRegistrationStatus,
     SourceLineageType,
     SourceType,
+    ResearchAcquisitionRequest,
 )
 from darwin.db.session import get_engine, get_session_factory, session_scope
 
 __all__ = [
     "Base",
+    "AcquisitionStatus",
     "Claim",
     "ClaimEvidence",
     "ClaimEvidenceRelation",
@@ -54,7 +59,10 @@ __all__ = [
     "ResearchRun",
     "ResearchRunStatus",
     "ResearchSynthesisRecord",
+    "ResearchAcquisitionRequest",
     "Source",
+    "SourceCandidate",
+    "SourceCandidateRegistrationStatus",
     "SourceLineageType",
     "SourceType",
     "get_engine",

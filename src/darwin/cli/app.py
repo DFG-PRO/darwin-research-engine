@@ -9,8 +9,16 @@ from pydantic import ValidationError
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
+from darwin.acquisition import (
+    AcquisitionConfigurationError,
+    AcquisitionRequest,
+    AcquisitionService,
+    BraveSearchProvider,
+    FakeResearchProvider,
+)
 from darwin.config import get_settings
 from darwin.db import get_engine, session_scope
+from darwin.db.models import SourceType
 from darwin.logging import configure_logging
 from darwin.orchestration import ManualResearchInput, ResearchOrchestrationError, ResearchOrchestrator
 from darwin.research import ResearchService, ResearchServiceError
@@ -147,6 +155,54 @@ def run_manual_research(
         raise typer.Exit(code=1) from exc
     except (ClaimValidationError, ResearchServiceError, SQLAlchemyError) as exc:
         typer.echo(f"Manual research execution failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+@research_app.command("acquire")
+def acquire_sources(
+    query: str = typer.Argument(..., help="Explicit external source discovery query."),
+    research_run_id: str = typer.Option(..., help="Research run UUID for acquisition provenance."),
+    provider: str | None = typer.Option(None, help="Provider override: fake or brave."),
+    result_limit: int = typer.Option(10, min=1, max=50, help="Maximum source candidates."),
+    domain: list[str] | None = typer.Option(None, help="Optional allowed domain constraint."),
+) -> None:
+    """Discover source candidates and register accepted Sources."""
+
+    settings = get_settings()
+    provider_name = provider or settings.external_search_provider
+    if provider_name not in {"fake", "brave"}:
+        typer.echo(f"Acquisition input failed: unknown provider {provider_name!r}")
+        raise typer.Exit(code=1)
+    try:
+        request = AcquisitionRequest(
+            research_run_id=research_run_id,
+            query=query,
+            domain_constraints=domain or [],
+            requested_source_types=[SourceType.WEB_PAGE],
+            result_limit=result_limit,
+        )
+        selected_provider = (
+            BraveSearchProvider(settings)
+            if provider_name == "brave"
+            else FakeResearchProvider()
+        )
+        with session_scope(settings) as session:
+            result = AcquisitionService(session, selected_provider).acquire(request)
+            typer.echo(f"Acquisition: {result.acquisition_id}")
+            typer.echo(f"Status: {result.status.value}")
+            typer.echo(f"Provider: {result.provider_id}")
+            typer.echo(f"Query: {result.query}")
+            typer.echo(f"Candidates discovered: {result.candidate_count}")
+            typer.echo(f"Sources registered: {result.registered_source_count}")
+            if result.warnings:
+                typer.echo("Warnings: " + ", ".join(result.warnings))
+            if result.errors:
+                typer.echo("Errors: " + ", ".join(result.errors))
+    except (ValidationError, AcquisitionConfigurationError) as exc:
+        typer.echo(f"Acquisition input failed: {exc}")
+        raise typer.Exit(code=1) from exc
+    except (ResearchServiceError, SQLAlchemyError) as exc:
+        typer.echo(f"Acquisition command failed: {exc}")
         raise typer.Exit(code=1) from exc
 
 

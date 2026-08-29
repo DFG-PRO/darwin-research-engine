@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -37,6 +37,29 @@ class Settings(BaseSettings):
     database_url: str = Field(
         default="postgresql+psycopg://darwin:darwin@localhost:5432/darwin",
         description="SQLAlchemy database URL for Darwin's PostgreSQL database.",
+    )
+    external_search_provider: Literal["fake", "brave"] = Field(
+        default="fake",
+        description="External source discovery provider identifier.",
+    )
+    external_search_timeout_seconds: float = Field(
+        default=10.0,
+        ge=0.1,
+        description="HTTP timeout for external source discovery requests.",
+    )
+    external_search_max_retries: int = Field(
+        default=1,
+        ge=0,
+        le=3,
+        description="Maximum bounded retry count for external source discovery.",
+    )
+    external_search_user_agent: str = Field(
+        default="DarwinResearchEngine/0.1",
+        description="User-Agent sent by HTTP-based external discovery providers.",
+    )
+    brave_search_api_key: SecretStr | None = Field(
+        default=None,
+        description="Brave Search API credential. Never commit real values.",
     )
 
 
