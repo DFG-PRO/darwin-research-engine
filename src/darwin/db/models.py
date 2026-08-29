@@ -7,11 +7,24 @@ import uuid
 from datetime import UTC, date, datetime
 from typing import Any
 
-from sqlalchemy import CheckConstraint, Date, DateTime, Enum, ForeignKey, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    Date,
+    DateTime,
+    Enum,
+    ForeignKey,
+    JSON,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from darwin.db.base import Base
+
+jsonb_metadata_type = JSONB().with_variant(JSON(), "sqlite")
 
 
 def utc_now() -> datetime:
@@ -121,7 +134,7 @@ class ResearchRun(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     research_method_version: Mapped[str] = mapped_column(String(64), nullable=False)
     darwin_version: Mapped[str] = mapped_column(String(64), nullable=False)
-    context: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    context: Mapped[dict[str, Any]] = mapped_column(jsonb_metadata_type, nullable=False, default=dict)
 
     evidence_items: Mapped[list[Evidence]] = relationship(back_populates="research_run")
     claims: Mapped[list[Claim]] = relationship(back_populates="research_run")
@@ -148,7 +161,12 @@ class Source(Base):
         default=utc_now,
     )
     content_fingerprint: Mapped[str | None] = mapped_column(String(128))
-    source_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, nullable=False, default=dict)
+    source_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata",
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -185,7 +203,7 @@ class Evidence(Base):
     )
     evidence_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata",
-        JSONB,
+        jsonb_metadata_type,
         nullable=False,
         default=dict,
     )

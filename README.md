@@ -2,7 +2,7 @@
 
 Darwin v0.1 is the initial foundation for a research and intelligence engine intended to preserve traceable evidence, validated knowledge, historical context, confidence, outcomes, errors, contradictions, assumptions, and decisions over time.
 
-Current status: **Phase 1.8B core research data model foundation**. This repository provides the technical base and the first persistent storage schema for bounded research runs, sources, evidence, claims, claim/evidence relationships, and conclusions. It does not implement research execution, evidence extraction, claim validation, confidence scoring, recommendation systems, memory retrieval, or domain intelligence features.
+Current status: **Phase 1.8C research run lifecycle and persistence services**. This repository provides the technical base, first persistent storage schema, and minimal service layer for creating, updating, linking, and retrieving persisted research records. It does not implement research execution, evidence extraction, claim validation, confidence scoring, recommendation systems, memory retrieval, or domain intelligence features.
 
 ## What Exists
 
@@ -12,6 +12,7 @@ Current status: **Phase 1.8B core research data model foundation**. This reposit
 - PostgreSQL-oriented SQLAlchemy 2.x engine, session, and declarative metadata foundation.
 - Alembic migration environment wired to Darwin settings and SQLAlchemy metadata.
 - Core SQLAlchemy research data model and first Alembic schema migration.
+- Minimal research persistence service layer for lifecycle and traceability operations.
 - Minimal Typer CLI.
 - Deterministic pytest coverage for imports, configuration, CLI, and database foundation setup.
 - Initial documentation directories and ADRs for decisions made in Phase 1.8A.
@@ -78,6 +79,16 @@ darwin db-status
 ```
 
 The database status command performs a read-only `select 1` connectivity check.
+
+Research persistence smoke commands:
+
+```bash
+darwin research --help
+darwin research create-run "Research question"
+darwin research get-run <run-uuid-or-public-id>
+```
+
+These commands require a configured database and call the service layer directly.
 
 ## Tests
 

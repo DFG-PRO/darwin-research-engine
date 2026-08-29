@@ -18,3 +18,12 @@ def test_cli_status(monkeypatch) -> None:
     assert result.exit_code == 0
     assert "Darwin status: ok" in result.stdout
     assert "Environment: test" in result.stdout
+
+
+def test_research_cli_help() -> None:
+    result = CliRunner().invoke(app, ["research", "--help"])
+
+    assert result.exit_code == 0
+    assert "Research run persistence smoke commands" in result.stdout
+    assert "create-run" in result.stdout
+    assert "get-run" in result.stdout

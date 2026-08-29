@@ -108,6 +108,8 @@ Core fields:
 
 Foreign keys use restrictive delete behavior to avoid accidental destructive removal of historical research state.
 
+Phase 1.8C adds service-layer validation requiring `ClaimEvidence` records to link claims and evidence from the same research run.
+
 ## Provenance Model
 
 Provenance is relational, not hidden in JSON:
@@ -119,6 +121,8 @@ Provenance is relational, not hidden in JSON:
 - Conclusions link to research runs.
 
 This allows future validation, contradiction tracking, and historical retrieval work to build on explicit relationships.
+
+Phase 1.8C retrieval returns sources used through evidence, evidence, claims, claim/evidence relationships, and conclusions in one traceable read model.
 
 ## Lifecycle and Status Concepts
 
@@ -147,6 +151,17 @@ JSONB is used only for flexible metadata and context payloads:
 - `evidence.metadata`
 
 Core relationships, lifecycle fields, identifiers, provenance links, and confidence fields are first-class columns and must not be hidden inside JSONB.
+
+## Service-Layer Constraints
+
+Phase 1.8C enforces these persistence rules above the database schema:
+
+- Research run lifecycle transitions are explicit and limited.
+- Evidence requires existing source and research run records.
+- Claims and conclusions require existing research run records.
+- Claim/evidence links cannot cross research run boundaries.
+- Duplicate claim/evidence links fail explicitly.
+- Source registration reuses deterministic duplicates by fingerprint or canonical identity.
 
 ## Current Limitations
 
