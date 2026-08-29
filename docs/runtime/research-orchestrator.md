@@ -1,6 +1,6 @@
 # Research Orchestrator
 
-Phase 1.8E adds one deterministic orchestrator for the v0.1 modular monolith.
+Phase 1.8E adds one deterministic orchestrator for the v0.1 modular monolith. Phase 1.8G leaves that orchestrator manual and additive: source content fetching and evidence extraction can occur before orchestration, but the orchestrator does not fetch content by itself.
 
 ## Responsibilities
 
@@ -22,6 +22,8 @@ Phase 1.8E adds one deterministic orchestrator for the v0.1 modular monolith.
 The orchestrator uses `ResearchService` for persistence operations and `ClaimValidationService` for validation state, reason codes, and validation history.
 
 The orchestrator owns method sequencing but does not duplicate persistence or validation rules already implemented in lower services.
+
+`SourceContentService` is separate from the orchestrator. Evidence produced from explicit source-content extraction enters the existing workflow as normal persisted Evidence or caller-supplied evidence references.
 
 ## Transaction Behavior
 
@@ -53,6 +55,7 @@ Incomplete, contested, or human-review-required results remain `IN_PROGRESS`.
 - research question
 - optional public ID
 - optional framing
+- optional acquired source IDs
 - plan items
 - sources
 - evidence
@@ -60,7 +63,7 @@ Incomplete, contested, or human-review-required results remain `IN_PROGRESS`.
 - conclusions
 - explicit human-review claim keys
 
-All source and evidence material must be supplied by the caller.
+All source and evidence material must be supplied by the caller or explicitly registered before orchestration. The orchestrator does not autonomously discover, fetch, or extract material.
 
 ## Output Contract
 

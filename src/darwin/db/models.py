@@ -189,6 +189,23 @@ class SourceCandidateRegistrationStatus(str, enum.Enum):
     REGISTRATION_FAILED = "REGISTRATION_FAILED"
 
 
+class SourceFetchStatus(str, enum.Enum):
+    """Execution state for fetching source content."""
+
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    UNSUPPORTED_CONTENT_TYPE = "UNSUPPORTED_CONTENT_TYPE"
+    TOO_LARGE = "TOO_LARGE"
+    ACCESS_DENIED = "ACCESS_DENIED"
+
+
+class EvidenceExtractionStatus(str, enum.Enum):
+    """Execution state for deterministic evidence extraction."""
+
+    EXTRACTED = "EXTRACTED"
+    FAILED = "FAILED"
+
+
 class ResearchRun(Base):
     """One bounded research investigation."""
 
@@ -232,6 +249,9 @@ class ResearchRun(Base):
         back_populates="research_run",
     )
     acquisition_requests: Mapped[list[ResearchAcquisitionRequest]] = relationship(
+        back_populates="research_run",
+    )
+    content_snapshots: Mapped[list[SourceContentSnapshot]] = relationship(
         back_populates="research_run",
     )
 
@@ -286,6 +306,9 @@ class Source(Base):
     acquisition_candidates: Mapped[list[SourceCandidate]] = relationship(
         back_populates="registered_source",
     )
+    content_snapshots: Mapped[list[SourceContentSnapshot]] = relationship(
+        back_populates="source",
+    )
 
 
 class Evidence(Base):
@@ -323,6 +346,9 @@ class Evidence(Base):
     research_run: Mapped[ResearchRun] = relationship(back_populates="evidence_items")
     source: Mapped[Source] = relationship(back_populates="evidence_items")
     claim_links: Mapped[list[ClaimEvidence]] = relationship(back_populates="evidence")
+    extraction_records: Mapped[list[EvidenceExtractionRecord]] = relationship(
+        back_populates="evidence",
+    )
 
 
 class Claim(Base):
@@ -769,3 +795,165 @@ class SourceCandidate(Base):
     registered_source: Mapped[Source | None] = relationship(
         back_populates="acquisition_candidates",
     )
+
+
+class SourceContentSnapshot(Base):
+    """Auditable content snapshot for one explicit source fetch attempt."""
+
+    __tablename__ = "source_content_snapshots"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    research_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    source_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("sources.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    requested_locator: Mapped[str] = mapped_column(Text, nullable=False)
+    final_locator: Mapped[str | None] = mapped_column(Text)
+    fetch_status: Mapped[SourceFetchStatus] = mapped_column(
+        Enum(SourceFetchStatus, name="source_fetch_status"),
+        nullable=False,
+    )
+    fetched_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+    content_type: Mapped[str | None] = mapped_column(String(255))
+    response_status: Mapped[int | None] = mapped_column(Integer)
+    raw_content_fingerprint: Mapped[str | None] = mapped_column(String(128))
+    normalized_content_fingerprint: Mapped[str | None] = mapped_column(String(128))
+    retrieval_method_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    normalization_method_version: Mapped[str | None] = mapped_column(String(64))
+    raw_body_size: Mapped[int | None] = mapped_column(Integer)
+    normalized_body_size: Mapped[int | None] = mapped_column(Integer)
+    raw_artifact_path: Mapped[str | None] = mapped_column(Text)
+    normalized_artifact_path: Mapped[str | None] = mapped_column(Text)
+    segment_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    warnings: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    errors: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    response_metadata: Mapped[dict[str, Any]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    request_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata",
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+
+    research_run: Mapped[ResearchRun] = relationship(back_populates="content_snapshots")
+    source: Mapped[Source] = relationship(back_populates="content_snapshots")
+    segments: Mapped[list[SourceContentSegment]] = relationship(back_populates="snapshot")
+    extraction_records: Mapped[list[EvidenceExtractionRecord]] = relationship(
+        back_populates="snapshot",
+    )
+
+
+class SourceContentSegment(Base):
+    """Addressable deterministic segment of normalized source content."""
+
+    __tablename__ = "source_content_segments"
+    __table_args__ = (
+        UniqueConstraint(
+            "snapshot_id",
+            "segment_identifier",
+            name="uq_source_content_segments_snapshot_identifier",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("source_content_snapshots.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    source_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("sources.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    segment_identifier: Mapped[str] = mapped_column(String(64), nullable=False)
+    segment_order: Mapped[int] = mapped_column(Integer, nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    locator: Mapped[str | None] = mapped_column(Text)
+    char_start: Mapped[int] = mapped_column(Integer, nullable=False)
+    char_end: Mapped[int] = mapped_column(Integer, nullable=False)
+    line_start: Mapped[int] = mapped_column(Integer, nullable=False)
+    line_end: Mapped[int] = mapped_column(Integer, nullable=False)
+    fingerprint: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+
+    snapshot: Mapped[SourceContentSnapshot] = relationship(back_populates="segments")
+    source: Mapped[Source] = relationship()
+    extraction_records: Mapped[list[EvidenceExtractionRecord]] = relationship(
+        back_populates="segment",
+    )
+
+
+class EvidenceExtractionRecord(Base):
+    """Audit record for explicit segment/span evidence extraction."""
+
+    __tablename__ = "evidence_extraction_records"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    research_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    source_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("sources.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("source_content_snapshots.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    segment_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("source_content_segments.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    evidence_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("evidence.id", ondelete="RESTRICT"),
+    )
+    extraction_status: Mapped[EvidenceExtractionStatus] = mapped_column(
+        Enum(EvidenceExtractionStatus, name="evidence_extraction_status"),
+        nullable=False,
+    )
+    extraction_method_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    selected_text: Mapped[str | None] = mapped_column(Text)
+    selected_text_fingerprint: Mapped[str | None] = mapped_column(String(128))
+    selection_locator: Mapped[str | None] = mapped_column(Text)
+    char_start: Mapped[int | None] = mapped_column(Integer)
+    char_end: Mapped[int | None] = mapped_column(Integer)
+    warnings: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    errors: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    extraction_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata",
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+
+    research_run: Mapped[ResearchRun] = relationship()
+    source: Mapped[Source] = relationship()
+    snapshot: Mapped[SourceContentSnapshot] = relationship(back_populates="extraction_records")
+    segment: Mapped[SourceContentSegment] = relationship(back_populates="extraction_records")
+    evidence: Mapped[Evidence | None] = relationship(back_populates="extraction_records")

@@ -9,7 +9,7 @@ def test_alembic_script_directory_loads_revision() -> None:
     config = Config("alembic.ini")
     script = ScriptDirectory.from_config(config)
 
-    assert script.get_current_head() == "0004_external_research_acquisition"
+    assert script.get_current_head() == "0005_source_content_acquisition"
 
 
 def test_alembic_offline_upgrade_compiles(capsys) -> None:
@@ -28,10 +28,13 @@ def test_alembic_offline_upgrade_compiles(capsys) -> None:
     assert "CREATE TABLE research_synthesis_records" in captured.out
     assert "CREATE TABLE research_acquisition_requests" in captured.out
     assert "CREATE TABLE source_candidates" in captured.out
+    assert "CREATE TABLE source_content_snapshots" in captured.out
+    assert "CREATE TABLE source_content_segments" in captured.out
+    assert "CREATE TABLE evidence_extraction_records" in captured.out
     assert "COMMIT;" in captured.out
 
 
-def test_alembic_offline_downgrade_new_revision_compiles(capsys) -> None:
+def test_alembic_offline_downgrade_acquisition_revision_compiles(capsys) -> None:
     config = Config("alembic.ini")
 
     command.downgrade(
@@ -45,8 +48,24 @@ def test_alembic_offline_downgrade_new_revision_compiles(capsys) -> None:
     assert "DROP TABLE research_acquisition_requests" in captured.out
 
 
+def test_alembic_offline_downgrade_new_revision_compiles(capsys) -> None:
+    config = Config("alembic.ini")
+
+    command.downgrade(
+        config,
+        "0005_source_content_acquisition:0004_external_research_acquisition",
+        sql=True,
+    )
+
+    captured = capsys.readouterr()
+    assert "DROP TABLE evidence_extraction_records" in captured.out
+    assert "DROP TABLE source_content_segments" in captured.out
+    assert "DROP TABLE source_content_snapshots" in captured.out
+
+
 def test_migration_file_exists() -> None:
     assert Path("alembic/versions/0001_core_research_data_model.py").is_file()
     assert Path("alembic/versions/0002_claim_validation_foundation.py").is_file()
     assert Path("alembic/versions/0003_research_method_orchestration.py").is_file()
     assert Path("alembic/versions/0004_external_research_acquisition.py").is_file()
+    assert Path("alembic/versions/0005_source_content_acquisition.py").is_file()

@@ -61,6 +61,43 @@ class Settings(BaseSettings):
         default=None,
         description="Brave Search API credential. Never commit real values.",
     )
+    source_fetch_timeout_seconds: float = Field(
+        default=10.0,
+        ge=0.1,
+        description="HTTP timeout for source content fetch requests.",
+    )
+    source_fetch_max_retries: int = Field(
+        default=1,
+        ge=0,
+        le=3,
+        description="Maximum bounded retry count for source content fetches.",
+    )
+    source_fetch_user_agent: str = Field(
+        default="DarwinResearchEngine/0.1",
+        description="User-Agent sent by HTTP source content fetches.",
+    )
+    source_fetch_max_bytes: int = Field(
+        default=1_000_000,
+        ge=1024,
+        description="Maximum raw response bytes persisted for one source content fetch.",
+    )
+    source_content_retrieval_method_version: str = Field(
+        default="source-fetch-http-1.8g",
+        description="Version identifier for source content retrieval.",
+    )
+    source_content_normalization_method_version: str = Field(
+        default="html-text-normalization-1.8g",
+        description="Version identifier for deterministic source content normalization.",
+    )
+    evidence_extraction_method_version: str = Field(
+        default="segment-extraction-1.8g",
+        description="Version identifier for explicit segment/span evidence extraction.",
+    )
+    evidence_excerpt_max_chars: int = Field(
+        default=4000,
+        ge=1,
+        description="Maximum characters allowed in one extracted Evidence excerpt.",
+    )
 
 
 @lru_cache

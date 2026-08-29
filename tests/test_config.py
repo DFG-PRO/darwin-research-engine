@@ -14,6 +14,13 @@ def test_settings_defaults_are_safe_for_local_development() -> None:
     assert settings.external_search_timeout_seconds == 10.0
     assert settings.external_search_max_retries == 1
     assert settings.brave_search_api_key is None
+    assert settings.source_fetch_timeout_seconds == 10.0
+    assert settings.source_fetch_max_retries == 1
+    assert settings.source_fetch_max_bytes == 1_000_000
+    assert settings.source_content_retrieval_method_version == "source-fetch-http-1.8g"
+    assert settings.source_content_normalization_method_version == "html-text-normalization-1.8g"
+    assert settings.evidence_extraction_method_version == "segment-extraction-1.8g"
+    assert settings.evidence_excerpt_max_chars == 4000
 
 
 def test_settings_can_be_initialized_from_environment(monkeypatch) -> None:
@@ -26,6 +33,10 @@ def test_settings_can_be_initialized_from_environment(monkeypatch) -> None:
     monkeypatch.setenv("DARWIN_EXTERNAL_SEARCH_TIMEOUT_SECONDS", "3.5")
     monkeypatch.setenv("DARWIN_EXTERNAL_SEARCH_MAX_RETRIES", "2")
     monkeypatch.setenv("DARWIN_BRAVE_SEARCH_API_KEY", "test-secret")
+    monkeypatch.setenv("DARWIN_SOURCE_FETCH_TIMEOUT_SECONDS", "4.5")
+    monkeypatch.setenv("DARWIN_SOURCE_FETCH_MAX_RETRIES", "2")
+    monkeypatch.setenv("DARWIN_SOURCE_FETCH_MAX_BYTES", "2048")
+    monkeypatch.setenv("DARWIN_EVIDENCE_EXCERPT_MAX_CHARS", "500")
 
     settings = Settings(_env_file=None)
 
@@ -39,3 +50,7 @@ def test_settings_can_be_initialized_from_environment(monkeypatch) -> None:
     assert settings.external_search_max_retries == 2
     assert settings.brave_search_api_key is not None
     assert settings.brave_search_api_key.get_secret_value() == "test-secret"
+    assert settings.source_fetch_timeout_seconds == 4.5
+    assert settings.source_fetch_max_retries == 2
+    assert settings.source_fetch_max_bytes == 2048
+    assert settings.evidence_excerpt_max_chars == 500

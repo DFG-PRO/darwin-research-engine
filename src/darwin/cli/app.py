@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from pathlib import Path
 
 import typer
@@ -17,8 +18,17 @@ from darwin.acquisition import (
     FakeResearchProvider,
 )
 from darwin.config import get_settings
+from darwin.content import (
+    EvidenceExtractionError,
+    FakeSourceFetcher,
+    HTTPSourceFetcher,
+    SegmentExtractionRequest,
+    SourceContentService,
+    SourceFetchRequest,
+    UnsupportedSourceLocator,
+)
 from darwin.db import get_engine, session_scope
-from darwin.db.models import SourceType
+from darwin.db.models import Source, SourceContentSnapshot, SourceType
 from darwin.logging import configure_logging
 from darwin.orchestration import ManualResearchInput, ResearchOrchestrationError, ResearchOrchestrator
 from darwin.research import ResearchService, ResearchServiceError
@@ -203,6 +213,105 @@ def acquire_sources(
         raise typer.Exit(code=1) from exc
     except (ResearchServiceError, SQLAlchemyError) as exc:
         typer.echo(f"Acquisition command failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+@research_app.command("fetch-source")
+def fetch_source_content(
+    source_id: str = typer.Argument(..., help="Registered Source UUID to fetch."),
+    research_run_id: str = typer.Option(..., help="Research run UUID for snapshot provenance."),
+    fetcher: str = typer.Option("http", help="Fetcher override: http or fake."),
+) -> None:
+    """Fetch registered Source content and persist a snapshot."""
+
+    if fetcher not in {"http", "fake"}:
+        typer.echo(f"Source fetch input failed: unknown fetcher {fetcher!r}")
+        raise typer.Exit(code=1)
+    settings = get_settings()
+    try:
+        fetch_request = SourceFetchRequest(research_run_id=research_run_id, source_id=source_id)
+        with session_scope(settings) as session:
+            source = session.get(Source, fetch_request.source_id)
+            if source is None:
+                typer.echo(f"Source fetch input failed: Source not found: {source_id}")
+                raise typer.Exit(code=1)
+            selected_fetcher = FakeSourceFetcher() if fetcher == "fake" else HTTPSourceFetcher(settings)
+            result = SourceContentService(session, settings, selected_fetcher).fetch_source(
+                fetch_request.model_copy(update={"canonical_locator": source.canonical_locator})
+            )
+            typer.echo(f"Source: {result.snapshot.source_id}")
+            typer.echo(f"Fetch status: {result.snapshot.fetch_status.value}")
+            typer.echo(f"Snapshot: {result.snapshot.id}")
+            typer.echo(f"Content fingerprint: {result.snapshot.raw_content_fingerprint}")
+            typer.echo(f"Segments: {len(result.segments)}")
+            if result.snapshot.errors:
+                typer.echo("Errors: " + ", ".join(result.snapshot.errors))
+    except (ValidationError, UnsupportedSourceLocator) as exc:
+        typer.echo(f"Source fetch input failed: {exc}")
+        raise typer.Exit(code=1) from exc
+    except (SQLAlchemyError, OSError) as exc:
+        typer.echo(f"Source fetch command failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+@research_app.command("source-content")
+def source_content(snapshot_id: str = typer.Argument(..., help="Source content snapshot UUID.")) -> None:
+    """List source content segments for a snapshot."""
+
+    settings = get_settings()
+    try:
+        parsed_snapshot_id = uuid.UUID(snapshot_id)
+        with session_scope(settings) as session:
+            snapshot = session.get(SourceContentSnapshot, parsed_snapshot_id)
+            if snapshot is None:
+                typer.echo(f"Source content input failed: Snapshot not found: {snapshot_id}")
+                raise typer.Exit(code=1)
+            segments = SourceContentService(session, settings, FakeSourceFetcher()).list_segments(
+                snapshot.id
+            )
+            typer.echo(f"Snapshot: {snapshot.id}")
+            typer.echo(f"Fetch status: {snapshot.fetch_status.value}")
+            typer.echo(f"Segments: {len(segments)}")
+            for segment in segments:
+                preview = segment.text[:80].replace("\n", " ")
+                typer.echo(f"{segment.segment_identifier}: {segment.id} {preview}")
+    except (ValueError, SQLAlchemyError) as exc:
+        typer.echo(f"Source content command failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+@research_app.command("extract-evidence")
+def extract_evidence(
+    segment_id: str = typer.Argument(..., help="Source content segment UUID."),
+    research_run_id: str = typer.Option(..., help="Research run UUID for evidence provenance."),
+    char_start: int | None = typer.Option(None, min=0, help="Optional segment-relative start char."),
+    char_end: int | None = typer.Option(None, min=0, help="Optional segment-relative end char."),
+) -> None:
+    """Register explicit Evidence from a selected segment or exact span."""
+
+    settings = get_settings()
+    try:
+        with session_scope(settings) as session:
+            result = SourceContentService(session, settings, FakeSourceFetcher()).extract_evidence(
+                SegmentExtractionRequest(
+                    research_run_id=research_run_id,
+                    segment_id=segment_id,
+                    char_start=char_start,
+                    char_end=char_end,
+                )
+            )
+            typer.echo(f"Extraction: {result.extraction_id}")
+            typer.echo(f"Extraction status: {result.extraction_status.value}")
+            typer.echo(f"Evidence: {result.evidence_id}")
+            typer.echo(f"Snapshot: {result.snapshot_id}")
+            typer.echo(f"Segment: {result.segment_id}")
+            if result.errors:
+                typer.echo("Errors: " + ", ".join(result.errors))
+    except (ValidationError, EvidenceExtractionError) as exc:
+        typer.echo(f"Evidence extraction input failed: {exc}")
+        raise typer.Exit(code=1) from exc
+    except SQLAlchemyError as exc:
+        typer.echo(f"Evidence extraction command failed: {exc}")
         raise typer.Exit(code=1) from exc
 
 

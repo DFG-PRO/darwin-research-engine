@@ -2,7 +2,7 @@
 
 Darwin v0.1 is the initial foundation for a research and intelligence engine intended to preserve traceable evidence, validated knowledge, historical context, confidence, outcomes, errors, contradictions, assumptions, and decisions over time.
 
-Current status: **Phase 1.8F external research acquisition layer**. This repository provides the technical base, persistent research schema, lifecycle persistence services, deterministic structural claim validation, a supplied-material research orchestrator, and a controlled external source discovery boundary. It does not implement autonomous research, crawling, evidence extraction, semantic claim validation, confidence scoring, recommendation systems, memory retrieval, or domain intelligence features.
+Current status: **Phase 1.8G source content acquisition and evidence extraction foundation**. This repository provides the technical base, persistent research schema, lifecycle persistence services, deterministic structural claim validation, a supplied-material research orchestrator, controlled external source discovery, and explicit source-content snapshot/segment/evidence extraction. It does not implement autonomous research, crawling, semantic claim validation, confidence scoring, recommendation systems, memory retrieval, or domain intelligence features.
 
 ## What Exists
 
@@ -16,6 +16,7 @@ Current status: **Phase 1.8F external research acquisition layer**. This reposit
 - Deterministic claim validation service and auditable validation history.
 - Deterministic supplied-material research orchestrator and synthesis records.
 - Provider-agnostic external source discovery with auditable acquisition history.
+- Controlled source content fetching, artifact snapshots, deterministic segmentation, and explicit Evidence extraction.
 - Minimal Typer CLI.
 - Deterministic pytest coverage for imports, configuration, CLI, and database foundation setup.
 - Initial documentation directories and ADRs for decisions made in Phase 1.8A.
@@ -56,6 +57,14 @@ Supported settings:
 - `DARWIN_EXTERNAL_SEARCH_MAX_RETRIES`: bounded retry count for external search providers. Defaults to `1`.
 - `DARWIN_EXTERNAL_SEARCH_USER_AGENT`: User-Agent for HTTP search providers. Defaults to `DarwinResearchEngine/0.1`.
 - `DARWIN_BRAVE_SEARCH_API_KEY`: required only when `DARWIN_EXTERNAL_SEARCH_PROVIDER=brave`.
+- `DARWIN_SOURCE_FETCH_TIMEOUT_SECONDS`: HTTP timeout for source content fetches. Defaults to `10`.
+- `DARWIN_SOURCE_FETCH_MAX_RETRIES`: bounded retry count for source content fetches. Defaults to `1`.
+- `DARWIN_SOURCE_FETCH_USER_AGENT`: User-Agent for HTTP source content fetches. Defaults to `DarwinResearchEngine/0.1`.
+- `DARWIN_SOURCE_FETCH_MAX_BYTES`: maximum raw bytes stored for one source fetch. Defaults to `1000000`.
+- `DARWIN_SOURCE_CONTENT_RETRIEVAL_METHOD_VERSION`: source retrieval method version. Defaults to `source-fetch-http-1.8g`.
+- `DARWIN_SOURCE_CONTENT_NORMALIZATION_METHOD_VERSION`: normalization method version. Defaults to `html-text-normalization-1.8g`.
+- `DARWIN_EVIDENCE_EXTRACTION_METHOD_VERSION`: extraction method version. Defaults to `segment-extraction-1.8g`.
+- `DARWIN_EVIDENCE_EXCERPT_MAX_CHARS`: maximum characters in one extracted Evidence excerpt. Defaults to `4000`.
 
 Do not commit real secrets or local `.env` files.
 
@@ -96,12 +105,17 @@ darwin research create-run "Research question"
 darwin research get-run <run-uuid-or-public-id>
 darwin research validate-claim <claim-uuid>
 darwin research acquire "search query" --research-run-id <run-uuid> --provider fake
+darwin research fetch-source <source-uuid> --research-run-id <run-uuid> --fetcher fake
+darwin research source-content <snapshot-uuid>
+darwin research extract-evidence <segment-uuid> --research-run-id <run-uuid>
 darwin research run-manual tests/fixtures/manual_research_complete.json
 ```
 
 These commands require a configured database and call the service layer directly.
 
 `darwin research acquire` discovers source candidates and registers accepted Sources. Provider snippets remain acquisition audit material only; they are not automatically Evidence, Claims, or Conclusions.
+
+`darwin research fetch-source` fetches a registered Source and writes raw/normalized artifacts below `DARWIN_ARTIFACT_ROOT`. `darwin research extract-evidence` only creates Evidence from an explicitly selected segment or span; it does not create Claims.
 
 ## Tests
 
@@ -141,11 +155,11 @@ Phase 1.8B defines the first domain migration:
 alembic upgrade head
 ```
 
-The current migrations create the core research data model, source lineage fields, claim validation evaluations, explicit human validation events, research framings, research plan items, synthesis records, acquisition requests, and source candidates. They do not provision a database, crawl content, or implement autonomous research.
+The current migrations create the core research data model, source lineage fields, claim validation evaluations, explicit human validation events, research framings, research plan items, synthesis records, acquisition requests, source candidates, source content snapshots, source content segments, and evidence extraction records. They do not provision a database, crawl content, or implement autonomous research.
 
 ## Architectural Boundary
 
-Darwin v0.1 is documented as a modular monolith with a single orchestrator. Phase 1.8E implemented the first deterministic supplied-material orchestrator. Phase 1.8F adds a provider-agnostic external acquisition layer that can feed registered Sources into the existing manual boundary.
+Darwin v0.1 is documented as a modular monolith with a single orchestrator. Phase 1.8E implemented the first deterministic supplied-material orchestrator. Phase 1.8F added a provider-agnostic external acquisition layer that can feed registered Sources into the existing manual boundary. Phase 1.8G adds explicit content snapshots and segment-based Evidence extraction.
 
 Current v0.1 persistence decisions:
 
@@ -155,5 +169,6 @@ Current v0.1 persistence decisions:
 - `pgvector` is not implemented in Phase 1.8A.
 - No multi-agent architecture is introduced in v0.1.
 - External acquisition does not turn provider results into validated evidence or truth.
+- Fetching content does not automatically create Evidence, Claims, validation, conclusions, or truth.
 
 The current documentation structure reserves directories for future architecture, method, runtime, data model, decisions, and benchmark documentation without populating speculative content.

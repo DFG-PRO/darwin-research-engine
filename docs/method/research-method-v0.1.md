@@ -1,6 +1,6 @@
 # Research Method v0.1
 
-Phase 1.8E introduced Darwin's first deterministic end-to-end research method over supplied material. Phase 1.8F adds controlled external source discovery as an optional pre-evidence acquisition step. The method still does not crawl, fetch full content, call LLMs, infer claims, classify evidence, or generate recommendations.
+Phase 1.8E introduced Darwin's first deterministic end-to-end research method over supplied material. Phase 1.8F added controlled external source discovery as an optional pre-evidence acquisition step. Phase 1.8G adds explicit source content fetching, snapshotting, segmentation, and exact evidence extraction. The method still does not crawl, call LLMs, infer claims, classify evidence semantically, or generate recommendations.
 
 ## Purpose
 
@@ -10,12 +10,14 @@ The method coordinates a complete auditable research workflow:
 2. Framing
 3. Research plan
 4. Optional external source discovery
-5. Supplied source and evidence intake
-6. Explicit claim registration
-7. Structural claim validation
-8. Deterministic synthesis
-9. Caller-supplied conclusions
-10. Completion assessment
+5. Optional explicit source content fetch
+6. Optional explicit segment/span evidence extraction
+7. Supplied source and evidence intake
+8. Explicit claim registration
+9. Structural claim validation
+10. Deterministic synthesis
+11. Caller-supplied conclusions
+12. Completion assessment
 
 ## Framing
 
@@ -40,6 +42,14 @@ External acquisition enters before evidence intake. A caller may submit an expli
 Accepted source candidates are registered as `Source` records through `ResearchService`. They may be supplied back to the manual orchestrator as `acquired_source_ids`.
 
 Discovered sources do not automatically satisfy plan items. Provider snippets are not Evidence. Source candidates are not Claims. Any later evidence capture must be explicit and traceable to a Source.
+
+## Source Content and Evidence Extraction
+
+Registered Sources may be fetched explicitly. Darwin persists a content snapshot, writes raw and normalized artifacts under `DARWIN_ARTIFACT_ROOT`, normalizes supported HTML/text content, and creates deterministic source segments.
+
+Evidence extraction is caller-selected. A full segment or exact character span can become an `EXCERPT` Evidence record through `ResearchService`. The extraction record preserves Source, Snapshot, Segment, selection locator, offsets, fingerprint, and extraction method version.
+
+Fetching a Source does not automatically create Evidence. Extracting Evidence does not create Claims or run validation automatically.
 
 ## Claim Registration
 
@@ -75,12 +85,13 @@ The method version comes from `DARWIN_RESEARCH_METHOD_VERSION`. Each research ru
 
 ## Auditability
 
-Framing, plan items, validation evaluations, human validation events, synthesis records, acquisition requests, and source candidates are persisted as auditable records. Darwin avoids storing the whole workflow only as one opaque JSON blob.
+Framing, plan items, validation evaluations, human validation events, synthesis records, acquisition requests, source candidates, content snapshots, source segments, and evidence extraction records are persisted as auditable records. Darwin avoids storing the whole workflow only as one opaque JSON blob.
 
 ## Limitations
 
 - No autonomous research.
-- No general web crawling or content extraction.
+- No general web crawling.
+- No automatic content fetching from discovered Sources.
 - No AI-generated framing, planning, evidence, claims, or synthesis.
 - No semantic contradiction detection.
 - No source quality scoring.
