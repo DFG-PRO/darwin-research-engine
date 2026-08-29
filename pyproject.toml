@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "darwin-research-engine"
+version = "0.1.0"
+description = "Repository foundation for the Darwin Research & Intelligence Engine."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Proprietary" }
+authors = [
+  { name = "Darwin Research & Intelligence Engine" }
+]
+dependencies = [
+  "alembic>=1.13,<2.0",
+  "psycopg[binary]>=3.2,<4.0",
+  "pydantic-settings>=2.4,<3.0",
+  "sqlalchemy>=2.0,<3.0",
+  "typer>=0.12,<1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0,<9.0",
+]
+
+[project.scripts]
+darwin = "darwin.cli.app:main"
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/darwin"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
