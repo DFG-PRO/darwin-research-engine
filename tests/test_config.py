@@ -21,6 +21,9 @@ def test_settings_defaults_are_safe_for_local_development() -> None:
     assert settings.source_content_normalization_method_version == "html-text-normalization-1.8g"
     assert settings.evidence_extraction_method_version == "segment-extraction-1.8g"
     assert settings.evidence_excerpt_max_chars == 4000
+    assert settings.claim_construction_method_version == "manual-explicit-claim-construction-1.8h"
+    assert settings.structured_synthesis_method_version == "structured-synthesis-1.8h"
+    assert settings.claim_statement_max_chars == 2000
 
 
 def test_settings_can_be_initialized_from_environment(monkeypatch) -> None:
@@ -37,6 +40,9 @@ def test_settings_can_be_initialized_from_environment(monkeypatch) -> None:
     monkeypatch.setenv("DARWIN_SOURCE_FETCH_MAX_RETRIES", "2")
     monkeypatch.setenv("DARWIN_SOURCE_FETCH_MAX_BYTES", "2048")
     monkeypatch.setenv("DARWIN_EVIDENCE_EXCERPT_MAX_CHARS", "500")
+    monkeypatch.setenv("DARWIN_CLAIM_CONSTRUCTION_METHOD_VERSION", "construct-test")
+    monkeypatch.setenv("DARWIN_STRUCTURED_SYNTHESIS_METHOD_VERSION", "synthesis-test")
+    monkeypatch.setenv("DARWIN_CLAIM_STATEMENT_MAX_CHARS", "300")
 
     settings = Settings(_env_file=None)
 
@@ -54,3 +60,6 @@ def test_settings_can_be_initialized_from_environment(monkeypatch) -> None:
     assert settings.source_fetch_max_retries == 2
     assert settings.source_fetch_max_bytes == 2048
     assert settings.evidence_excerpt_max_chars == 500
+    assert settings.claim_construction_method_version == "construct-test"
+    assert settings.structured_synthesis_method_version == "synthesis-test"
+    assert settings.claim_statement_max_chars == 300

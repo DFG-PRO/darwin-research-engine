@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from darwin.config import Settings
+from darwin.construction import ClaimConstructionRequest, ClaimConstructionService, ClaimEvidenceSelection
 from darwin.db.models import (
     Claim,
     ClaimValidationState,
@@ -34,6 +35,7 @@ from darwin.orchestration.schemas import (
     ResearchOrchestrationResult,
 )
 from darwin.research import ResearchService
+from darwin.synthesis import ConclusionClaimLinkRequest, StructuredSynthesisService
 from darwin.validation import ClaimValidationService
 
 
@@ -48,6 +50,8 @@ class ResearchOrchestrator:
             session,
             method_version=settings.research_method_version,
         )
+        self.construction_service = ClaimConstructionService(session, settings)
+        self.synthesis_service = StructuredSynthesisService(session, settings)
 
     def run_manual(self, manual_input: ManualResearchInput) -> ResearchOrchestrationResult:
         self._validate_unique_keys("source", [source.source_key for source in manual_input.sources])
@@ -57,6 +61,14 @@ class ResearchOrchestrator:
         )
         self._validate_unique_keys("claim", [claim.claim_key for claim in manual_input.claims])
         self._validate_unique_keys("plan item", [item.item_key for item in manual_input.plan_items])
+        self._validate_unique_keys(
+            "conclusion",
+            [
+                conclusion.conclusion_key
+                for conclusion in manual_input.conclusions
+                if conclusion.conclusion_key is not None
+            ],
+        )
 
         research_run = self.research_service.create_research_run(
             title=manual_input.research_question,
@@ -73,7 +85,11 @@ class ResearchOrchestrator:
         sources.update(self._load_acquired_sources(manual_input.acquired_source_ids))
         evidence = self._register_evidence(research_run, manual_input, sources, plan_items)
         claims = self._register_claims(research_run, manual_input.claims, evidence)
-        conclusions = self._register_conclusions(research_run, manual_input.conclusions)
+        conclusions, conclusions_by_key = self._register_conclusions(
+            research_run,
+            manual_input.conclusions,
+        )
+        self._link_conclusion_claims(manual_input, claims, conclusions_by_key)
 
         claim_results = self._validate_claims(manual_input, claims)
         completion_assessment = self._completion_assessment(plan_items, claim_results, evidence)
@@ -234,42 +250,100 @@ class ResearchOrchestrator:
     ) -> dict[str, Claim]:
         claims: dict[str, Claim] = {}
         for claim_input in claim_inputs:
-            claim = self.research_service.register_claim(
-                research_run_id=research_run.id,
-                statement=claim_input.statement,
-                claim_type=claim_input.claim_type,
-                status=claim_input.status,
-                confidence=claim_input.confidence,
-            )
-            claims[claim_input.claim_key] = claim
-
+            evidence_selections = []
             for relationship in claim_input.evidence:
-                evidence_item = evidence.get(relationship.evidence_key)
-                if evidence_item is None:
-                    raise ResearchOrchestrationError(
-                        f"Claim references unknown evidence key: {relationship.evidence_key}"
+                evidence_item = self._evidence_for_claim_relationship(relationship.evidence_key, evidence)
+                evidence_selections.append(
+                    ClaimEvidenceSelection(
+                        evidence_id=evidence_item.id,
+                        relation=relationship.relation,
                     )
-                self.research_service.link_claim_evidence(
-                    claim_id=claim.id,
-                    evidence_id=evidence_item.id,
-                    relation=relationship.relation,
                 )
+
+            if evidence_selections:
+                construction_result = self.construction_service.construct_claim(
+                    ClaimConstructionRequest(
+                        research_run_id=research_run.id,
+                        statement=claim_input.statement,
+                        claim_type=claim_input.claim_type,
+                        evidence=evidence_selections,
+                        construction_method=claim_input.construction_method,
+                        auto_validate=False,
+                    )
+                )
+                claim = self.session.get(Claim, construction_result.claim_id)
+                if claim is None:
+                    raise ResearchOrchestrationError("Constructed claim was not persisted")
+                claim.status = claim_input.status
+                claim.confidence = claim_input.confidence
+                claims[claim_input.claim_key] = claim
+            else:
+                claim = self.research_service.register_claim(
+                    research_run_id=research_run.id,
+                    statement=claim_input.statement,
+                    claim_type=claim_input.claim_type,
+                    status=claim_input.status,
+                    confidence=claim_input.confidence,
+                )
+                claims[claim_input.claim_key] = claim
         return claims
+
+    def _evidence_for_claim_relationship(
+        self,
+        evidence_key: str,
+        evidence: dict[str, Evidence],
+    ) -> Evidence:
+        evidence_item = evidence.get(evidence_key)
+        if evidence_item is None:
+            raise ResearchOrchestrationError(
+                f"Claim references unknown evidence key: {evidence_key}"
+            )
+        return evidence_item
 
     def _register_conclusions(
         self,
         research_run: ResearchRun,
         conclusion_inputs: list[Any],
-    ) -> list[Conclusion]:
-        return [
-            self.research_service.register_conclusion(
+    ) -> tuple[list[Conclusion], dict[str, Conclusion]]:
+        conclusions: list[Conclusion] = []
+        conclusions_by_key: dict[str, Conclusion] = {}
+        for index, conclusion_input in enumerate(conclusion_inputs):
+            conclusion = self.research_service.register_conclusion(
                 research_run_id=research_run.id,
                 statement=conclusion_input.statement,
                 status=conclusion_input.status,
                 confidence=conclusion_input.confidence,
             )
-            for conclusion_input in conclusion_inputs
-        ]
+            conclusions.append(conclusion)
+            key = conclusion_input.conclusion_key or f"conclusion-{index}"
+            conclusions_by_key[key] = conclusion
+        return conclusions, conclusions_by_key
+
+    def _link_conclusion_claims(
+        self,
+        manual_input: ManualResearchInput,
+        claims: dict[str, Claim],
+        conclusions_by_key: dict[str, Conclusion],
+    ) -> None:
+        for relationship in manual_input.conclusion_claims:
+            conclusion = conclusions_by_key.get(relationship.conclusion_key)
+            if conclusion is None:
+                raise ResearchOrchestrationError(
+                    f"Conclusion link references unknown conclusion key: {relationship.conclusion_key}"
+                )
+            claim = claims.get(relationship.claim_key)
+            if claim is None:
+                raise ResearchOrchestrationError(
+                    f"Conclusion link references unknown claim key: {relationship.claim_key}"
+                )
+            self.synthesis_service.link_conclusion_claim(
+                ConclusionClaimLinkRequest(
+                    conclusion_id=conclusion.id,
+                    claim_id=claim.id,
+                    relation=relationship.relation,
+                    metadata=relationship.metadata,
+                )
+            )
 
     def _validate_claims(
         self,

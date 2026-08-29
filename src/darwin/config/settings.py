@@ -98,6 +98,19 @@ class Settings(BaseSettings):
         ge=1,
         description="Maximum characters allowed in one extracted Evidence excerpt.",
     )
+    claim_construction_method_version: str = Field(
+        default="manual-explicit-claim-construction-1.8h",
+        description="Version identifier for explicit evidence-to-claim construction.",
+    )
+    structured_synthesis_method_version: str = Field(
+        default="structured-synthesis-1.8h",
+        description="Version identifier for deterministic evidence-grounded synthesis.",
+    )
+    claim_statement_max_chars: int = Field(
+        default=2000,
+        ge=1,
+        description="Maximum characters allowed in one constructed Claim statement.",
+    )
 
 
 @lru_cache

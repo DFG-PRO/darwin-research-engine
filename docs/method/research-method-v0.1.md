@@ -1,6 +1,6 @@
 # Research Method v0.1
 
-Phase 1.8E introduced Darwin's first deterministic end-to-end research method over supplied material. Phase 1.8F added controlled external source discovery as an optional pre-evidence acquisition step. Phase 1.8G adds explicit source content fetching, snapshotting, segmentation, and exact evidence extraction. The method still does not crawl, call LLMs, infer claims, classify evidence semantically, or generate recommendations.
+Phase 1.8E introduced Darwin's first deterministic end-to-end research method over supplied material. Phase 1.8F added controlled external source discovery as an optional pre-evidence acquisition step. Phase 1.8G adds explicit source content fetching, snapshotting, segmentation, and exact evidence extraction. Phase 1.8H adds caller-supplied evidence-to-claim construction and structured synthesis records. The method still does not crawl, call LLMs, infer claims, classify evidence semantically, or generate recommendations.
 
 ## Purpose
 
@@ -13,10 +13,10 @@ The method coordinates a complete auditable research workflow:
 5. Optional explicit source content fetch
 6. Optional explicit segment/span evidence extraction
 7. Supplied source and evidence intake
-8. Explicit claim registration
+8. Explicit claim construction or legacy explicit claim registration
 9. Structural claim validation
-10. Deterministic synthesis
-11. Caller-supplied conclusions
+10. Caller-supplied conclusions and explicit conclusion-to-claim links
+11. Deterministic structured synthesis
 12. Completion assessment
 
 ## Framing
@@ -51,11 +51,13 @@ Evidence extraction is caller-selected. A full segment or exact character span c
 
 Fetching a Source does not automatically create Evidence. Extracting Evidence does not create Claims or run validation automatically.
 
-## Claim Registration
+## Claim Construction
 
 Claims are explicit caller inputs. Evidence relationships are explicit and use existing claim/evidence relationship semantics such as `SUPPORTS`, `CONTRADICTS`, and `CONTEXTUALIZES`.
 
-Darwin does not generate claims from evidence in Phase 1.8E.
+When claims cite evidence, Phase 1.8H routes them through `ClaimConstructionService`. The caller must provide the claim statement, claim type, selected evidence IDs, evidence relationships, and construction metadata. Darwin persists the Claim, claim/evidence links, a `ClaimConstructionRecord`, and selected construction evidence rows.
+
+Darwin does not generate claims from evidence in Phase 1.8H.
 
 ## Validation
 
@@ -63,9 +65,9 @@ The orchestrator invokes `ClaimValidationService` for each supplied claim. Valid
 
 ## Synthesis
 
-Synthesis is deterministic and structural. It assembles research question, objective, method version, run status, source/evidence counts, claim validation states, unresolved contradictions, evidence gaps, assumptions, caller-supplied conclusions, warnings, and completion assessment.
+Synthesis is deterministic and structural. It assembles research question, method version, source/evidence counts, claim validation states, evidence/source/snapshot/segment provenance, explicit conclusion-to-claim dependencies, unresolved contradictions, evidence gaps, warnings, and completion assessment.
 
-Synthesis does not invent conclusions or unsupported prose.
+Synthesis does not invent conclusions, claim statements, recommendations, or unsupported prose.
 
 ## Completion Rules
 
@@ -85,7 +87,7 @@ The method version comes from `DARWIN_RESEARCH_METHOD_VERSION`. Each research ru
 
 ## Auditability
 
-Framing, plan items, validation evaluations, human validation events, synthesis records, acquisition requests, source candidates, content snapshots, source segments, and evidence extraction records are persisted as auditable records. Darwin avoids storing the whole workflow only as one opaque JSON blob.
+Framing, plan items, validation evaluations, human validation events, synthesis records, acquisition requests, source candidates, content snapshots, source segments, evidence extraction records, claim construction records, and conclusion-to-claim links are persisted as auditable records. Darwin avoids storing the whole workflow only as one opaque JSON blob.
 
 ## Limitations
 

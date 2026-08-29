@@ -1,6 +1,6 @@
 # Research Orchestrator
 
-Phase 1.8E adds one deterministic orchestrator for the v0.1 modular monolith. Phase 1.8G leaves that orchestrator manual and additive: source content fetching and evidence extraction can occur before orchestration, but the orchestrator does not fetch content by itself.
+Phase 1.8E adds one deterministic orchestrator for the v0.1 modular monolith. Phase 1.8H keeps that orchestrator manual and additive: source discovery, content fetching, evidence extraction, claim construction, and structured synthesis are explicit services around the same single orchestrator boundary.
 
 ## Responsibilities
 
@@ -10,9 +10,10 @@ Phase 1.8E adds one deterministic orchestrator for the v0.1 modular monolith. Ph
 - framing persistence
 - plan item persistence
 - supplied source and evidence intake
-- explicit claim registration and claim/evidence linking
+- explicit claim construction and claim/evidence linking
 - claim validation through `ClaimValidationService`
 - caller-supplied conclusion persistence
+- explicit conclusion-to-claim linking
 - deterministic synthesis
 - completion assessment
 - final lifecycle update when structurally complete
@@ -40,6 +41,7 @@ Examples:
 - evidence references an unknown source key
 - evidence references an unknown plan item key
 - a claim references an unknown evidence key
+- a conclusion link references an unknown claim or conclusion key
 - human review references an unknown claim key
 
 ## Lifecycle Integration
@@ -61,6 +63,7 @@ Incomplete, contested, or human-review-required results remain `IN_PROGRESS`.
 - evidence
 - claims and explicit evidence relationships
 - conclusions
+- explicit conclusion-to-claim relationships
 - explicit human-review claim keys
 
 All source and evidence material must be supplied by the caller or explicitly registered before orchestration. The orchestrator does not autonomously discover, fetch, or extract material.
@@ -81,6 +84,7 @@ All source and evidence material must be supplied by the caller or explicitly re
 - evidence gaps
 - assumptions
 - conclusions
+- explicit conclusion dependencies when supplied
 - warnings
 - completion assessment
 - synthesis record ID

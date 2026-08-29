@@ -11,9 +11,11 @@ from darwin.config import Settings, get_settings
 from darwin.db import Base
 from darwin.db.models import (
     Claim,
+    ClaimConstructionRecord,
     ClaimValidationEvaluation,
     ClaimValidationState,
     Evidence,
+    ConclusionClaim,
     ResearchCompletionAssessment,
     ResearchFraming,
     ResearchPlanItem,
@@ -90,7 +92,17 @@ def complete_input() -> ManualResearchInput:
                 }
             ],
             "conclusions": [
-                {"statement": "The supplied research workflow is structurally complete."}
+                {
+                    "conclusion_key": "conclusion-a",
+                    "statement": "The supplied research workflow is structurally complete.",
+                }
+            ],
+            "conclusion_claims": [
+                {
+                    "conclusion_key": "conclusion-a",
+                    "claim_key": "claim-a",
+                    "relation": "SUPPORTS_CONCLUSION",
+                }
             ],
         }
     )
@@ -114,6 +126,8 @@ def test_happy_path_creates_complete_auditable_research_run(session_factory) -> 
     with session_factory() as session:
         assert session.scalar(select(func.count()).select_from(ResearchFraming)) == 1
         assert session.scalar(select(func.count()).select_from(ResearchPlanItem)) == 1
+        assert session.scalar(select(func.count()).select_from(ClaimConstructionRecord)) == 1
+        assert session.scalar(select(func.count()).select_from(ConclusionClaim)) == 1
         assert session.scalar(select(func.count()).select_from(ResearchSynthesisRecord)) == 1
 
 

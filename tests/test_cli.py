@@ -39,6 +39,9 @@ def test_research_cli_help() -> None:
     assert "fetch-source" in result.stdout
     assert "source-content" in result.stdout
     assert "extract-evidence" in result.stdout
+    assert "construct-claim" in result.stdout
+    assert "claim" in result.stdout
+    assert "synthesize" in result.stdout
 
 
 def test_research_acquire_cli_fake_provider(tmp_path, monkeypatch) -> None:
@@ -87,6 +90,9 @@ def test_source_content_cli_help() -> None:
     assert runner.invoke(app, ["research", "fetch-source", "--help"]).exit_code == 0
     assert runner.invoke(app, ["research", "source-content", "--help"]).exit_code == 0
     assert runner.invoke(app, ["research", "extract-evidence", "--help"]).exit_code == 0
+    assert runner.invoke(app, ["research", "construct-claim", "--help"]).exit_code == 0
+    assert runner.invoke(app, ["research", "claim", "--help"]).exit_code == 0
+    assert runner.invoke(app, ["research", "synthesize", "--help"]).exit_code == 0
 
 
 def test_source_content_cli_fake_fetch_and_extract(tmp_path, monkeypatch) -> None:

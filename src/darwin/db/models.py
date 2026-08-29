@@ -206,6 +206,20 @@ class EvidenceExtractionStatus(str, enum.Enum):
     FAILED = "FAILED"
 
 
+class ClaimConstructionMethod(str, enum.Enum):
+    """Method used to construct a claim from evidence."""
+
+    MANUAL_EXPLICIT = "MANUAL_EXPLICIT"
+
+
+class ConclusionClaimRelation(str, enum.Enum):
+    """Explicit relationship between a claim and a conclusion."""
+
+    SUPPORTS_CONCLUSION = "SUPPORTS_CONCLUSION"
+    CONTRADICTS_CONCLUSION = "CONTRADICTS_CONCLUSION"
+    CONTEXTUALIZES_CONCLUSION = "CONTEXTUALIZES_CONCLUSION"
+
+
 class ResearchRun(Base):
     """One bounded research investigation."""
 
@@ -252,6 +266,9 @@ class ResearchRun(Base):
         back_populates="research_run",
     )
     content_snapshots: Mapped[list[SourceContentSnapshot]] = relationship(
+        back_populates="research_run",
+    )
+    claim_construction_records: Mapped[list[ClaimConstructionRecord]] = relationship(
         back_populates="research_run",
     )
 
@@ -349,6 +366,9 @@ class Evidence(Base):
     extraction_records: Mapped[list[EvidenceExtractionRecord]] = relationship(
         back_populates="evidence",
     )
+    construction_evidence_links: Mapped[list[ClaimConstructionEvidence]] = relationship(
+        back_populates="evidence",
+    )
 
 
 class Claim(Base):
@@ -399,6 +419,10 @@ class Claim(Base):
     human_validation_events: Mapped[list[ClaimHumanValidation]] = relationship(
         back_populates="claim",
     )
+    construction_records: Mapped[list[ClaimConstructionRecord]] = relationship(
+        back_populates="claim",
+    )
+    conclusion_links: Mapped[list[ConclusionClaim]] = relationship(back_populates="claim")
 
 
 class ClaimEvidence(Base):
@@ -466,6 +490,7 @@ class Conclusion(Base):
     )
 
     research_run: Mapped[ResearchRun] = relationship(back_populates="conclusions")
+    claim_links: Mapped[list[ConclusionClaim]] = relationship(back_populates="conclusion")
 
 
 class ClaimValidationEvaluation(Base):
@@ -957,3 +982,119 @@ class EvidenceExtractionRecord(Base):
     snapshot: Mapped[SourceContentSnapshot] = relationship(back_populates="extraction_records")
     segment: Mapped[SourceContentSegment] = relationship(back_populates="extraction_records")
     evidence: Mapped[Evidence | None] = relationship(back_populates="extraction_records")
+
+
+class ClaimConstructionRecord(Base):
+    """Append-friendly audit record for explicit evidence-to-claim construction."""
+
+    __tablename__ = "claim_construction_records"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    research_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    claim_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("claims.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    construction_method: Mapped[ClaimConstructionMethod] = mapped_column(
+        Enum(ClaimConstructionMethod, name="claim_construction_method"),
+        nullable=False,
+    )
+    construction_method_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    claim_statement: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    warning_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    warnings: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    construction_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata",
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+
+    research_run: Mapped[ResearchRun] = relationship(back_populates="claim_construction_records")
+    claim: Mapped[Claim] = relationship(back_populates="construction_records")
+    evidence_selections: Mapped[list[ClaimConstructionEvidence]] = relationship(
+        back_populates="construction_record",
+    )
+
+
+class ClaimConstructionEvidence(Base):
+    """Evidence selected for an explicit claim construction record."""
+
+    __tablename__ = "claim_construction_evidence"
+    __table_args__ = (
+        UniqueConstraint(
+            "claim_construction_record_id",
+            "evidence_id",
+            name="uq_claim_construction_evidence_record_evidence",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    claim_construction_record_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("claim_construction_records.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    evidence_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("evidence.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    relation: Mapped[ClaimEvidenceRelation] = mapped_column(
+        Enum(ClaimEvidenceRelation, name="claim_evidence_relation"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+
+    construction_record: Mapped[ClaimConstructionRecord] = relationship(
+        back_populates="evidence_selections",
+    )
+    evidence: Mapped[Evidence] = relationship(back_populates="construction_evidence_links")
+
+
+class ConclusionClaim(Base):
+    """Explicit relationship between a persisted conclusion and claim."""
+
+    __tablename__ = "conclusion_claims"
+    __table_args__ = (
+        UniqueConstraint("conclusion_id", "claim_id", name="uq_conclusion_claim_pair"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    conclusion_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("conclusions.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    claim_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("claims.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    relation: Mapped[ConclusionClaimRelation] = mapped_column(
+        Enum(ConclusionClaimRelation, name="conclusion_claim_relation"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+    relationship_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata",
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+
+    conclusion: Mapped[Conclusion] = relationship(back_populates="claim_links")
+    claim: Mapped[Claim] = relationship(back_populates="conclusion_links")

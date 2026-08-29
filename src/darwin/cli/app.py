@@ -27,11 +27,13 @@ from darwin.content import (
     SourceFetchRequest,
     UnsupportedSourceLocator,
 )
+from darwin.construction import ClaimConstructionError, ClaimConstructionRequest, ClaimConstructionService
 from darwin.db import get_engine, session_scope
 from darwin.db.models import Source, SourceContentSnapshot, SourceType
 from darwin.logging import configure_logging
 from darwin.orchestration import ManualResearchInput, ResearchOrchestrationError, ResearchOrchestrator
 from darwin.research import ResearchService, ResearchServiceError
+from darwin.synthesis import StructuredSynthesisService
 from darwin.validation import ClaimValidationError, ClaimValidationService
 
 app = typer.Typer(
@@ -165,6 +167,71 @@ def run_manual_research(
         raise typer.Exit(code=1) from exc
     except (ClaimValidationError, ResearchServiceError, SQLAlchemyError) as exc:
         typer.echo(f"Manual research execution failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+@research_app.command("construct-claim")
+def construct_claim(
+    input_file: Path = typer.Argument(..., exists=True, file_okay=True, dir_okay=False, readable=True),
+) -> None:
+    """Construct one caller-supplied claim from explicit evidence selections."""
+
+    settings = get_settings()
+    try:
+        request = ClaimConstructionRequest.model_validate_json(input_file.read_text())
+        with session_scope(settings) as session:
+            result = ClaimConstructionService(session, settings).construct_claim(request)
+            typer.echo(result.model_dump_json(indent=2))
+    except (OSError, ValidationError, ClaimConstructionError) as exc:
+        typer.echo(f"Claim construction input failed: {exc}")
+        raise typer.Exit(code=1) from exc
+    except (ClaimValidationError, ResearchServiceError, SQLAlchemyError) as exc:
+        typer.echo(f"Claim construction command failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+@research_app.command("claim")
+def inspect_claim(claim_id: str = typer.Argument(..., help="Claim UUID to inspect.")) -> None:
+    """Show a claim with validation and evidence provenance."""
+
+    settings = get_settings()
+    try:
+        with session_scope(settings) as session:
+            claim = StructuredSynthesisService(session, settings).get_claim_view(claim_id)
+            typer.echo(f"Claim: {claim.claim_id}")
+            typer.echo(f"Statement: {claim.statement}")
+            typer.echo(
+                "Validation state: "
+                f"{claim.validation_state.value if claim.validation_state is not None else 'UNASSESSED'}"
+            )
+            typer.echo(f"Construction method: {claim.construction_method}")
+            typer.echo(f"Evidence: {len(claim.evidence)}")
+            for evidence in claim.evidence:
+                typer.echo(
+                    f"- {evidence.relation.value}: {evidence.evidence_id} "
+                    f"source={evidence.source_id} snapshot={evidence.snapshot_id} "
+                    f"segment={evidence.segment_id}"
+                )
+            if claim.warnings:
+                typer.echo("Warnings: " + ", ".join(claim.warnings))
+    except (ValueError, ClaimConstructionError, SQLAlchemyError) as exc:
+        typer.echo(f"Claim inspection failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+@research_app.command("synthesize")
+def synthesize_research_run(
+    research_run_id: str = typer.Argument(..., help="Research run UUID or public ID."),
+) -> None:
+    """Create a deterministic structured synthesis record for a research run."""
+
+    settings = get_settings()
+    try:
+        with session_scope(settings) as session:
+            result = StructuredSynthesisService(session, settings).synthesize(research_run_id)
+            typer.echo(result.model_dump_json(indent=2))
+    except (ResearchServiceError, ClaimConstructionError, SQLAlchemyError) as exc:
+        typer.echo(f"Synthesis command failed: {exc}")
         raise typer.Exit(code=1) from exc
 
 

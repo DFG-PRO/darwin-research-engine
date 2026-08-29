@@ -5,6 +5,9 @@ from sqlalchemy import inspect
 from darwin.db import Base
 from darwin.db.models import (
     Claim,
+    ClaimConstructionEvidence,
+    ClaimConstructionMethod,
+    ClaimConstructionRecord,
     ClaimEvidence,
     ClaimEvidenceRelation,
     ClaimHumanValidation,
@@ -14,6 +17,8 @@ from darwin.db.models import (
     ClaimValidationReasonCode,
     ClaimValidationState,
     Conclusion,
+    ConclusionClaim,
+    ConclusionClaimRelation,
     ConclusionStatus,
     Evidence,
     EvidenceType,
@@ -39,6 +44,9 @@ def test_model_imports() -> None:
     assert Claim.__tablename__ == "claims"
     assert ClaimEvidence.__tablename__ == "claim_evidence"
     assert Conclusion.__tablename__ == "conclusions"
+    assert ClaimConstructionRecord.__tablename__ == "claim_construction_records"
+    assert ClaimConstructionEvidence.__tablename__ == "claim_construction_evidence"
+    assert ConclusionClaim.__tablename__ == "conclusion_claims"
     assert ClaimValidationEvaluation.__tablename__ == "claim_validation_evaluations"
     assert ClaimHumanValidation.__tablename__ == "claim_human_validations"
     assert ResearchFraming.__tablename__ == "research_framings"
@@ -54,6 +62,9 @@ def test_metadata_contains_expected_tables() -> None:
         "claims",
         "claim_evidence",
         "conclusions",
+        "claim_construction_records",
+        "claim_construction_evidence",
+        "conclusion_claims",
         "claim_validation_evaluations",
         "claim_human_validations",
         "research_framings",
@@ -88,6 +99,27 @@ def test_required_fields_are_not_nullable() -> None:
         Claim: {"id", "research_run_id", "statement", "claim_type", "status", "created_at", "updated_at"},
         ClaimEvidence: {"id", "claim_id", "evidence_id", "relation", "created_at"},
         Conclusion: {"id", "research_run_id", "statement", "status", "created_at", "updated_at"},
+        ClaimConstructionRecord: {
+            "id",
+            "research_run_id",
+            "claim_id",
+            "construction_method",
+            "construction_method_version",
+            "claim_statement",
+            "evidence_count",
+            "warning_count",
+            "warnings",
+            "metadata",
+            "created_at",
+        },
+        ClaimConstructionEvidence: {
+            "id",
+            "claim_construction_record_id",
+            "evidence_id",
+            "relation",
+            "created_at",
+        },
+        ConclusionClaim: {"id", "conclusion_id", "claim_id", "relation", "created_at", "metadata"},
         ClaimValidationEvaluation: {
             "id",
             "claim_id",
@@ -164,12 +196,14 @@ def test_core_enums_are_small_and_explicit() -> None:
     assert ClaimEvidenceRelation.CONTRADICTS.value == "CONTRADICTS"
     assert ClaimEvidenceRelation.CONTEXTUALIZES.value == "CONTEXTUALIZES"
     assert ClaimEvidenceRelation.RELATED.value == "RELATED"
+    assert ClaimConstructionMethod.MANUAL_EXPLICIT.value == "MANUAL_EXPLICIT"
     assert ClaimStatus.PROPOSED.value == "PROPOSED"
     assert ClaimType.PROPOSITION.value == "PROPOSITION"
     assert SourceType.WEB_PAGE.value == "WEB_PAGE"
     assert SourceLineageType.DERIVED_FROM.value == "DERIVED_FROM"
     assert EvidenceType.EXCERPT.value == "EXCERPT"
     assert ConclusionStatus.DRAFT.value == "DRAFT"
+    assert ConclusionClaimRelation.SUPPORTS_CONCLUSION.value == "SUPPORTS_CONCLUSION"
     assert ClaimValidationState.CORROBORATED.value == "CORROBORATED"
     assert ClaimValidationReasonCode.NO_EVIDENCE.value == "NO_EVIDENCE"
     assert HumanValidationType.VALIDATED.value == "VALIDATED"
@@ -219,6 +253,24 @@ def test_relationships_preserve_research_provenance() -> None:
         statement="The foundation supports provenance-preserving storage.",
         status=ConclusionStatus.DRAFT,
     )
+    construction_record = ClaimConstructionRecord(
+        research_run=research_run,
+        claim=claim,
+        construction_method=ClaimConstructionMethod.MANUAL_EXPLICIT,
+        construction_method_version="manual-explicit-test",
+        claim_statement=claim.statement,
+        evidence_count=1,
+    )
+    construction_evidence = ClaimConstructionEvidence(
+        construction_record=construction_record,
+        evidence=evidence,
+        relation=ClaimEvidenceRelation.SUPPORTS,
+    )
+    conclusion_claim = ConclusionClaim(
+        conclusion=conclusion,
+        claim=claim,
+        relation=ConclusionClaimRelation.SUPPORTS_CONCLUSION,
+    )
 
     assert evidence.source is source
     assert evidence.research_run is research_run
@@ -227,6 +279,10 @@ def test_relationships_preserve_research_provenance() -> None:
     assert claim_evidence.evidence is evidence
     assert claim_evidence.relation is ClaimEvidenceRelation.SUPPORTS
     assert conclusion.research_run is research_run
+    assert construction_record.claim is claim
+    assert construction_evidence.evidence is evidence
+    assert conclusion_claim.conclusion is conclusion
+    assert conclusion_claim.claim is claim
 
 
 def test_confidence_is_nullable_and_range_constrained() -> None:

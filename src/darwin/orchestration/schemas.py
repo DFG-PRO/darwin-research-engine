@@ -10,11 +10,13 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from darwin.db.models import (
+    ClaimConstructionMethod,
     ClaimEvidenceRelation,
     ClaimStatus,
     ClaimType,
     ClaimValidationReasonCode,
     ClaimValidationState,
+    ConclusionClaimRelation,
     ConclusionStatus,
     EvidenceType,
     ResearchCompletionAssessment,
@@ -84,12 +86,21 @@ class ClaimInput(BaseModel):
     status: ClaimStatus = ClaimStatus.PROPOSED
     confidence: Decimal | float | None = None
     evidence: list[ClaimEvidenceInput] = Field(default_factory=list)
+    construction_method: ClaimConstructionMethod = ClaimConstructionMethod.MANUAL_EXPLICIT
 
 
 class ConclusionInput(BaseModel):
+    conclusion_key: str | None = None
     statement: str
     status: ConclusionStatus = ConclusionStatus.DRAFT
     confidence: Decimal | float | None = None
+
+
+class ConclusionClaimInput(BaseModel):
+    conclusion_key: str
+    claim_key: str
+    relation: ConclusionClaimRelation
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ManualResearchInput(BaseModel):
@@ -102,6 +113,7 @@ class ManualResearchInput(BaseModel):
     evidence: list[EvidenceInput] = Field(default_factory=list)
     claims: list[ClaimInput] = Field(default_factory=list)
     conclusions: list[ConclusionInput] = Field(default_factory=list)
+    conclusion_claims: list[ConclusionClaimInput] = Field(default_factory=list)
     human_review_claim_keys: list[str] = Field(default_factory=list)
 
 
