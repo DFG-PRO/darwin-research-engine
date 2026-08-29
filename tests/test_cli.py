@@ -28,3 +28,4 @@ def test_research_cli_help() -> None:
     assert "create-run" in result.stdout
     assert "get-run" in result.stdout
     assert "validate-claim" in result.stdout
+    assert "run-manual" in result.stdout

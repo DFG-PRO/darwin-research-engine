@@ -1,0 +1,55 @@
+{
+  "research_question": "Can Darwin execute a supplied-material research workflow?",
+  "public_id": "rrn_manual_fixture",
+  "framing": {
+    "objective": "Verify deterministic manual orchestration.",
+    "scope": "Use only supplied fixture material.",
+    "assumptions": ["Fixture evidence is supplied by the caller."],
+    "required_evidence_categories": ["workflow"],
+    "completion_criteria": ["Required workflow evidence is present."]
+  },
+  "plan_items": [
+    {
+      "item_key": "workflow-evidence",
+      "requirement": "Provide evidence that the workflow completes.",
+      "category": "workflow",
+      "priority": "HIGH",
+      "required": true
+    }
+  ],
+  "sources": [
+    {
+      "source_key": "fixture-doc",
+      "source_type": "DOCUMENT",
+      "canonical_locator": "fixture://manual-research-complete",
+      "title": "Manual research fixture"
+    }
+  ],
+  "evidence": [
+    {
+      "evidence_key": "workflow-evidence-1",
+      "source_key": "fixture-doc",
+      "evidence_type": "OBSERVATION",
+      "statement": "The supplied fixture includes source, evidence, claim, and conclusion input.",
+      "plan_item_keys": ["workflow-evidence"]
+    }
+  ],
+  "claims": [
+    {
+      "claim_key": "workflow-claim",
+      "statement": "Darwin can orchestrate supplied research material.",
+      "evidence": [
+        {
+          "evidence_key": "workflow-evidence-1",
+          "relation": "SUPPORTS"
+        }
+      ]
+    }
+  ],
+  "conclusions": [
+    {
+      "statement": "The manual research workflow completed over supplied material.",
+      "status": "DRAFT"
+    }
+  ]
+}

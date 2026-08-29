@@ -2,7 +2,7 @@
 
 Darwin v0.1 is the initial foundation for a research and intelligence engine intended to preserve traceable evidence, validated knowledge, historical context, confidence, outcomes, errors, contradictions, assumptions, and decisions over time.
 
-Current status: **Phase 1.8D evidence and claim validation foundation**. This repository provides the technical base, persistent research schema, lifecycle persistence services, and deterministic structural claim validation records. It does not implement research execution, evidence extraction, semantic claim validation, confidence scoring, recommendation systems, memory retrieval, or domain intelligence features.
+Current status: **Phase 1.8E research method and orchestration MVP**. This repository provides the technical base, persistent research schema, lifecycle persistence services, deterministic structural claim validation, and a supplied-material research orchestrator. It does not implement web research, evidence extraction, semantic claim validation, confidence scoring, recommendation systems, memory retrieval, or domain intelligence features.
 
 ## What Exists
 
@@ -14,6 +14,7 @@ Current status: **Phase 1.8D evidence and claim validation foundation**. This re
 - Core SQLAlchemy research data model and first Alembic schema migration.
 - Minimal research persistence service layer for lifecycle and traceability operations.
 - Deterministic claim validation service and auditable validation history.
+- Deterministic supplied-material research orchestrator and synthesis records.
 - Minimal Typer CLI.
 - Deterministic pytest coverage for imports, configuration, CLI, and database foundation setup.
 - Initial documentation directories and ADRs for decisions made in Phase 1.8A.
@@ -88,6 +89,7 @@ darwin research --help
 darwin research create-run "Research question"
 darwin research get-run <run-uuid-or-public-id>
 darwin research validate-claim <claim-uuid>
+darwin research run-manual tests/fixtures/manual_research_complete.json
 ```
 
 These commands require a configured database and call the service layer directly.
@@ -130,11 +132,11 @@ Phase 1.8B defines the first domain migration:
 alembic upgrade head
 ```
 
-The current migrations create the core research data model, source lineage fields, claim validation evaluations, and explicit human validation events. They do not provision a database or implement research workflows.
+The current migrations create the core research data model, source lineage fields, claim validation evaluations, explicit human validation events, research framings, research plan items, and synthesis records. They do not provision a database or implement autonomous research.
 
 ## Architectural Boundary
 
-Darwin v0.1 is documented as a modular monolith with a single orchestrator. Phase 1.8D does not implement the orchestrator itself.
+Darwin v0.1 is documented as a modular monolith with a single orchestrator. Phase 1.8E implements the first deterministic supplied-material orchestrator.
 
 Current v0.1 persistence decisions:
 

@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import typer
+from pydantic import ValidationError
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from darwin.config import get_settings
 from darwin.db import get_engine, session_scope
 from darwin.logging import configure_logging
+from darwin.orchestration import ManualResearchInput, ResearchOrchestrationError, ResearchOrchestrator
 from darwin.research import ResearchService, ResearchServiceError
 from darwin.validation import ClaimValidationError, ClaimValidationService
 
@@ -123,6 +127,26 @@ def validate_claim(claim_id: str = typer.Argument(..., help="Claim UUID to valid
             )
     except (ClaimValidationError, ResearchServiceError, SQLAlchemyError) as exc:
         typer.echo(f"Validation command failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+@research_app.command("run-manual")
+def run_manual_research(
+    input_file: Path = typer.Argument(..., exists=True, file_okay=True, dir_okay=False, readable=True),
+) -> None:
+    """Run the deterministic manual research method from supplied JSON."""
+
+    settings = get_settings()
+    try:
+        manual_input = ManualResearchInput.model_validate_json(input_file.read_text())
+        with session_scope(settings) as session:
+            result = ResearchOrchestrator(session, settings).run_manual(manual_input)
+            typer.echo(result.model_dump_json(indent=2))
+    except (OSError, ValidationError, ResearchOrchestrationError) as exc:
+        typer.echo(f"Manual research input failed: {exc}")
+        raise typer.Exit(code=1) from exc
+    except (ClaimValidationError, ResearchServiceError, SQLAlchemyError) as exc:
+        typer.echo(f"Manual research execution failed: {exc}")
         raise typer.Exit(code=1) from exc
 
 

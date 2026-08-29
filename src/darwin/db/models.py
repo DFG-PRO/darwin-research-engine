@@ -145,6 +145,32 @@ class HumanValidationType(str, enum.Enum):
     VALIDATED = "VALIDATED"
 
 
+class ResearchPlanItemStatus(str, enum.Enum):
+    """Lifecycle state for a research plan item."""
+
+    PENDING = "PENDING"
+    SATISFIED = "SATISFIED"
+    WAIVED = "WAIVED"
+
+
+class ResearchPlanPriority(str, enum.Enum):
+    """Small priority set for research plan items."""
+
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+
+
+class ResearchCompletionAssessment(str, enum.Enum):
+    """Deterministic completion assessment for a research run."""
+
+    COMPLETE = "COMPLETE"
+    INCOMPLETE = "INCOMPLETE"
+    NEEDS_EVIDENCE = "NEEDS_EVIDENCE"
+    UNRESOLVED_CONTRADICTION = "UNRESOLVED_CONTRADICTION"
+    HUMAN_REVIEW_REQUIRED = "HUMAN_REVIEW_REQUIRED"
+
+
 class ResearchRun(Base):
     """One bounded research investigation."""
 
@@ -182,6 +208,11 @@ class ResearchRun(Base):
     evidence_items: Mapped[list[Evidence]] = relationship(back_populates="research_run")
     claims: Mapped[list[Claim]] = relationship(back_populates="research_run")
     conclusions: Mapped[list[Conclusion]] = relationship(back_populates="research_run")
+    framings: Mapped[list[ResearchFraming]] = relationship(back_populates="research_run")
+    plan_items: Mapped[list[ResearchPlanItem]] = relationship(back_populates="research_run")
+    synthesis_records: Mapped[list[ResearchSynthesisRecord]] = relationship(
+        back_populates="research_run",
+    )
 
 
 class Source(Base):
@@ -445,3 +476,136 @@ class ClaimHumanValidation(Base):
     note: Mapped[str | None] = mapped_column(Text)
 
     claim: Mapped[Claim] = relationship(back_populates="human_validation_events")
+
+
+class ResearchFraming(Base):
+    """Auditable framing record for a research run."""
+
+    __tablename__ = "research_framings"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    research_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    original_question: Mapped[str] = mapped_column(Text, nullable=False)
+    normalized_question: Mapped[str] = mapped_column(Text, nullable=False)
+    objective: Mapped[str] = mapped_column(Text, nullable=False)
+    scope: Mapped[str] = mapped_column(Text, nullable=False)
+    exclusions: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    key_decision_criteria: Mapped[list[str]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=list,
+    )
+    assumptions: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    required_evidence_categories: Mapped[list[str]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=list,
+    )
+    completion_criteria: Mapped[list[str]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=list,
+    )
+    framing_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata",
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+
+    research_run: Mapped[ResearchRun] = relationship(back_populates="framings")
+
+
+class ResearchPlanItem(Base):
+    """Auditable plan requirement for a research run."""
+
+    __tablename__ = "research_plan_items"
+    __table_args__ = (
+        UniqueConstraint("research_run_id", "item_key", name="uq_research_plan_items_run_key"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    research_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    item_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    requirement: Mapped[str] = mapped_column(Text, nullable=False)
+    category: Mapped[str] = mapped_column(String(128), nullable=False)
+    priority: Mapped[ResearchPlanPriority] = mapped_column(
+        Enum(ResearchPlanPriority, name="research_plan_priority"),
+        nullable=False,
+        default=ResearchPlanPriority.MEDIUM,
+    )
+    is_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    status: Mapped[ResearchPlanItemStatus] = mapped_column(
+        Enum(ResearchPlanItemStatus, name="research_plan_item_status"),
+        nullable=False,
+        default=ResearchPlanItemStatus.PENDING,
+    )
+    expected_source_type: Mapped[SourceType | None] = mapped_column(
+        Enum(SourceType, name="source_type"),
+    )
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+    research_run: Mapped[ResearchRun] = relationship(back_populates="plan_items")
+
+
+class ResearchSynthesisRecord(Base):
+    """Auditable deterministic synthesis record for a research run."""
+
+    __tablename__ = "research_synthesis_records"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    research_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    research_method_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    completion_assessment: Mapped[ResearchCompletionAssessment] = mapped_column(
+        Enum(ResearchCompletionAssessment, name="research_completion_assessment"),
+        nullable=False,
+    )
+    source_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    evidence_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    claim_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    conclusion_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    evidence_gaps: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    unresolved_contradictions: Mapped[list[str]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=list,
+    )
+    warnings: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    synthesis_payload: Mapped[dict[str, Any]] = mapped_column(
+        "payload",
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+
+    research_run: Mapped[ResearchRun] = relationship(back_populates="synthesis_records")

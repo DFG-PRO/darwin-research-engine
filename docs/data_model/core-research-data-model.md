@@ -149,6 +149,61 @@ Core fields:
 
 Human validation is never inferred.
 
+### ResearchFraming
+
+Represents one auditable framing record for a research run.
+
+Core fields:
+
+- `id`: UUID primary key.
+- `research_run_id`: required link to the research run.
+- `original_question`: caller's original research question.
+- `normalized_question`: deterministic normalized question.
+- `objective`: research objective.
+- `scope`: stated research scope.
+- `exclusions`: JSONB list of out-of-scope items.
+- `key_decision_criteria`: JSONB list of decision criteria.
+- `assumptions`: JSONB list of assumptions.
+- `required_evidence_categories`: JSONB list of expected evidence categories.
+- `completion_criteria`: JSONB list of completion criteria.
+- `metadata`: JSONB payload for framing metadata.
+- `created_at`: framing record creation timestamp.
+
+### ResearchPlanItem
+
+Represents one auditable plan requirement for a research run.
+
+Core fields:
+
+- `id`: UUID primary key.
+- `research_run_id`: required link to the research run.
+- `item_key`: caller-facing key unique within the research run.
+- `requirement`: evidence requirement or task.
+- `category`: generic evidence category.
+- `priority`: `LOW`, `MEDIUM`, or `HIGH`.
+- `is_required`: whether completion requires this plan item.
+- `status`: `PENDING`, `SATISFIED`, or `WAIVED`.
+- `expected_source_type`: optional expected source type.
+- `notes`: optional notes.
+- `created_at`, `updated_at`: timestamps.
+
+### ResearchSynthesisRecord
+
+Represents one auditable deterministic synthesis record for a research run.
+
+Core fields:
+
+- `id`: UUID primary key.
+- `research_run_id`: required link to the research run.
+- `research_method_version`: method version used.
+- `completion_assessment`: deterministic completion assessment.
+- source, evidence, claim, and conclusion counts.
+- `evidence_gaps`: JSONB list of required plan item keys still missing evidence.
+- `unresolved_contradictions`: JSONB list of contested claim keys.
+- `warnings`: JSONB list of structural warnings.
+- `payload`: JSONB structured output snapshot.
+- `created_at`: synthesis timestamp.
+
 ## Provenance Model
 
 Provenance is relational, not hidden in JSON:
@@ -203,6 +258,8 @@ Phase 1.8C enforces these persistence rules above the database schema:
 - Source registration reuses deterministic duplicates by fingerprint or canonical identity.
 - Claim validation appends auditable evaluation records.
 - Human review and validation require explicit persisted events.
+- Research orchestration persists framing, plan items, and synthesis records.
+- Required plan items are satisfied only by explicit supplied evidence references.
 
 ## Current Limitations
 

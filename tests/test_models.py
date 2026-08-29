@@ -18,8 +18,14 @@ from darwin.db.models import (
     Evidence,
     EvidenceType,
     HumanValidationType,
+    ResearchCompletionAssessment,
+    ResearchFraming,
+    ResearchPlanItem,
+    ResearchPlanItemStatus,
+    ResearchPlanPriority,
     ResearchRun,
     ResearchRunStatus,
+    ResearchSynthesisRecord,
     Source,
     SourceLineageType,
     SourceType,
@@ -35,6 +41,9 @@ def test_model_imports() -> None:
     assert Conclusion.__tablename__ == "conclusions"
     assert ClaimValidationEvaluation.__tablename__ == "claim_validation_evaluations"
     assert ClaimHumanValidation.__tablename__ == "claim_human_validations"
+    assert ResearchFraming.__tablename__ == "research_framings"
+    assert ResearchPlanItem.__tablename__ == "research_plan_items"
+    assert ResearchSynthesisRecord.__tablename__ == "research_synthesis_records"
 
 
 def test_metadata_contains_expected_tables() -> None:
@@ -47,6 +56,9 @@ def test_metadata_contains_expected_tables() -> None:
         "conclusions",
         "claim_validation_evaluations",
         "claim_human_validations",
+        "research_framings",
+        "research_plan_items",
+        "research_synthesis_records",
     }.issubset(Base.metadata.tables)
 
 
@@ -95,6 +107,48 @@ def test_required_fields_are_not_nullable() -> None:
             "validation_method_version",
         },
         ClaimHumanValidation: {"id", "claim_id", "validation_type", "created_at"},
+        ResearchFraming: {
+            "id",
+            "research_run_id",
+            "original_question",
+            "normalized_question",
+            "objective",
+            "scope",
+            "exclusions",
+            "key_decision_criteria",
+            "assumptions",
+            "required_evidence_categories",
+            "completion_criteria",
+            "metadata",
+            "created_at",
+        },
+        ResearchPlanItem: {
+            "id",
+            "research_run_id",
+            "item_key",
+            "requirement",
+            "category",
+            "priority",
+            "is_required",
+            "status",
+            "created_at",
+            "updated_at",
+        },
+        ResearchSynthesisRecord: {
+            "id",
+            "research_run_id",
+            "research_method_version",
+            "completion_assessment",
+            "source_count",
+            "evidence_count",
+            "claim_count",
+            "conclusion_count",
+            "evidence_gaps",
+            "unresolved_contradictions",
+            "warnings",
+            "payload",
+            "created_at",
+        },
     }
 
     for model, column_names in expected_required_columns.items():
@@ -119,6 +173,9 @@ def test_core_enums_are_small_and_explicit() -> None:
     assert ClaimValidationState.CORROBORATED.value == "CORROBORATED"
     assert ClaimValidationReasonCode.NO_EVIDENCE.value == "NO_EVIDENCE"
     assert HumanValidationType.VALIDATED.value == "VALIDATED"
+    assert ResearchPlanItemStatus.SATISFIED.value == "SATISFIED"
+    assert ResearchPlanPriority.HIGH.value == "HIGH"
+    assert ResearchCompletionAssessment.COMPLETE.value == "COMPLETE"
 
 
 def test_relationships_preserve_research_provenance() -> None:
