@@ -5,7 +5,15 @@ from sqlalchemy.orm import sessionmaker
 from darwin.cli.app import app
 from darwin.config import get_settings
 from darwin.db import Base
-from darwin.db.models import Claim, Evidence, SourceContentSegment, SourceContentSnapshot, SourceType
+from darwin.db.models import (
+    Claim,
+    Evidence,
+    ResearchPlanProposal,
+    ResearchRun,
+    SourceContentSegment,
+    SourceContentSnapshot,
+    SourceType,
+)
 from darwin.research import ResearchService
 
 
@@ -35,6 +43,9 @@ def test_research_cli_help() -> None:
     assert "get-run" in result.stdout
     assert "validate-claim" in result.stdout
     assert "run-manual" in result.stdout
+    assert "plan" in result.stdout
+    assert "plan-show" in result.stdout
+    assert "plan-approve" in result.stdout
     assert "acquire" in result.stdout
     assert "fetch-source" in result.stdout
     assert "source-content" in result.stdout
@@ -93,6 +104,44 @@ def test_source_content_cli_help() -> None:
     assert runner.invoke(app, ["research", "construct-claim", "--help"]).exit_code == 0
     assert runner.invoke(app, ["research", "claim", "--help"]).exit_code == 0
     assert runner.invoke(app, ["research", "synthesize", "--help"]).exit_code == 0
+    assert runner.invoke(app, ["research", "plan", "--help"]).exit_code == 0
+    assert runner.invoke(app, ["research", "plan-show", "--help"]).exit_code == 0
+    assert runner.invoke(app, ["research", "plan-approve", "--help"]).exit_code == 0
+
+
+def test_research_planner_cli_plan_show_and_approve(tmp_path, monkeypatch) -> None:
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'darwin-planning.sqlite'}"
+    engine = create_engine(database_url)
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine, expire_on_commit=False)
+
+    monkeypatch.setenv("DARWIN_DATABASE_URL", database_url)
+    monkeypatch.setenv("DARWIN_RESEARCH_PLANNING_PROVIDER", "fake")
+    get_settings.cache_clear()
+    try:
+        plan_result = CliRunner().invoke(
+            app,
+            ["research", "plan", "How should planning work?", "--provider", "fake"],
+        )
+        with session_factory() as session:
+            proposal_id = str(session.query(ResearchPlanProposal).one().id)
+            assert session.query(ResearchRun).count() == 0
+
+        show_result = CliRunner().invoke(app, ["research", "plan-show", proposal_id])
+        approve_result = CliRunner().invoke(app, ["research", "plan-approve", proposal_id])
+    finally:
+        get_settings.cache_clear()
+
+    assert plan_result.exit_code == 0
+    assert "Approval status: PROPOSED" in plan_result.stdout
+    assert "Provider: fake" in plan_result.stdout
+    assert "Tasks: 2" in plan_result.stdout
+    assert show_result.exit_code == 0
+    assert "Proposal:" in show_result.stdout
+    assert approve_result.exit_code == 0
+    assert "Approval mode: MANUAL" in approve_result.stdout
+    with session_factory() as session:
+        assert session.query(ResearchRun).count() == 1
 
 
 def test_source_content_cli_fake_fetch_and_extract(tmp_path, monkeypatch) -> None:

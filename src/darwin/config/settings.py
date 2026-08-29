@@ -111,6 +111,65 @@ class Settings(BaseSettings):
         ge=1,
         description="Maximum characters allowed in one constructed Claim statement.",
     )
+    research_planning_provider: Literal["fake", "openai"] = Field(
+        default="fake",
+        description="Planning provider identifier. Fake is deterministic and network-free.",
+    )
+    research_planning_model: str = Field(
+        default="fake-deterministic-planner-v1",
+        description="Provider model identifier for research planning proposals.",
+    )
+    research_planning_method_version: str = Field(
+        default="research-planning-1.9a",
+        description="Version identifier for the planner method contract.",
+    )
+    research_planning_prompt_version: str = Field(
+        default="research-planning-prompt-1.9a",
+        description="Version identifier for LLM planning prompt semantics.",
+    )
+    research_planning_schema_version: str = Field(
+        default="research-plan-proposal-schema-1.9a",
+        description="Version identifier for structured planning output.",
+    )
+    research_planning_timeout_seconds: float = Field(
+        default=20.0,
+        ge=0.1,
+        description="HTTP timeout for configured live planning providers.",
+    )
+    research_planning_max_plan_items: int = Field(
+        default=8,
+        ge=1,
+        le=25,
+        description="Maximum proposed plan items accepted by the planner.",
+    )
+    research_planning_max_required_plan_items: int = Field(
+        default=6,
+        ge=1,
+        le=25,
+        description="Maximum required plan items accepted by the planner.",
+    )
+    research_planning_max_categories: int = Field(
+        default=6,
+        ge=1,
+        le=20,
+        description="Maximum research categories accepted by the planner.",
+    )
+    research_planning_max_breadth: int = Field(
+        default=5,
+        ge=1,
+        le=20,
+        description="Maximum source breadth hint accepted in planning requests.",
+    )
+    research_planning_max_depth: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description="Maximum search depth hint accepted in planning requests.",
+    )
+    openai_api_key: SecretStr | None = Field(
+        default=None,
+        description="OpenAI API credential for optional live planning. Never persisted.",
+    )
 
 
 @lru_cache

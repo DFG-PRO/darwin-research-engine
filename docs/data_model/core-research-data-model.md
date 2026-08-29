@@ -204,6 +204,59 @@ Core fields:
 - `payload`: JSONB structured output snapshot.
 - `created_at`: synthesis timestamp.
 
+### ResearchPlanProposal
+
+Phase 1.9A adds append-only proposal persistence before a research run is approved.
+
+Core fields:
+
+- `id`: UUID primary key.
+- `research_run_id`: nullable link to the approved `ResearchRun`, populated only after approval.
+- `original_question`: caller's original planning question.
+- `normalized_question`: provider-normalized question.
+- `objective`: proposed research objective.
+- `scope`: proposed research scope.
+- `exclusions`: JSONB list of proposed exclusions.
+- `assumptions`: JSONB list of proposed assumptions.
+- `research_categories`: JSONB list of proposed research categories.
+- `expected_evidence_types`: JSONB list of evidence types expected during later execution.
+- `suggested_source_types`: JSONB list of source types suggested for later acquisition.
+- `status`: `PROPOSED`, `APPROVED`, `REJECTED`, or `FAILED`.
+- `approval_mode`: nullable `MANUAL` or `AUTO_APPROVED`.
+- `approved_at`: approval timestamp when approved.
+- `provider_id`, `provider_model`, `provider_response_id`: provider provenance.
+- `planner_method_version`, `prompt_version`, `schema_version`: planning behavior versions.
+- `warnings`, `errors`, `validation_result`: planning diagnostics.
+- `planning_request`: JSONB snapshot of the caller request.
+- `proposal_payload`: JSONB snapshot of the validated structured proposal.
+- `provider_metadata`, `usage_metadata`, `cost_metadata`: non-secret provider metadata.
+- `metadata`: additional planning provenance.
+- `created_at`: proposal creation timestamp.
+
+### ResearchPlanProposalItem
+
+Represents one proposed task before approval.
+
+Core fields:
+
+- `id`: UUID primary key.
+- `proposal_id`: required link to `ResearchPlanProposal`.
+- `item_key`: proposal-facing key unique within a proposal.
+- `requirement`: proposed task requirement.
+- `category`: proposed research category.
+- `priority`: `LOW`, `MEDIUM`, or `HIGH`.
+- `is_required`: whether the task is required in the proposal.
+- `status`: always `PENDING` at proposal time.
+- `expected_source_type`: optional primary source type.
+- `expected_evidence_types`: JSONB list of expected evidence types.
+- `suggested_source_types`: JSONB list of suggested source types.
+- `completion_criteria`: JSONB list of explicit task completion criteria.
+- `notes`: optional notes.
+- `item_order`: stable display order from the provider proposal.
+- `created_at`: proposal item creation timestamp.
+
+Approval copies proposal content into the existing `ResearchFraming` and `ResearchPlanItem` models. Planning proposal records do not replace Phase 1.8 research plans.
+
 ## Provenance Model
 
 Provenance is relational, not hidden in JSON:
@@ -213,10 +266,14 @@ Provenance is relational, not hidden in JSON:
 - Claims link to research runs.
 - Claim/evidence semantics are stored in `claim_evidence.relation`.
 - Conclusions link to research runs.
+- Research plan proposals may link to one approved research run.
+- Research plan proposals have many proposed plan item rows.
 
 This allows future validation, contradiction tracking, and historical retrieval work to build on explicit relationships.
 
 Phase 1.8C retrieval returns sources used through evidence, evidence, claims, claim/evidence relationships, and conclusions in one traceable read model.
+
+Phase 1.9A planning proposal provenance is intentionally separate from Evidence, Claims, and Conclusions. A proposal may suggest what evidence to seek, but it does not create or validate evidence.
 
 ## Lifecycle and Status Concepts
 
@@ -225,6 +282,8 @@ Current enum sets are intentionally small:
 - Research runs: `PENDING`, `IN_PROGRESS`, `COMPLETED`, `FAILED`.
 - Claims: `PROPOSED`, `UNDER_REVIEW`, `RESOLVED`, `REJECTED`.
 - Conclusions: `DRAFT`, `FINAL`, `SUPERSEDED`.
+- Research plan proposals: `PROPOSED`, `APPROVED`, `REJECTED`, `FAILED`.
+- Research plan approval modes: `MANUAL`, `AUTO_APPROVED`.
 
 These states provide foundation-level lifecycle clarity without implementing research execution behavior.
 
@@ -241,6 +300,9 @@ Timestamps use timezone-aware SQLAlchemy `DateTime(timezone=True)` fields. Appli
 JSONB is used only for flexible metadata and context payloads:
 
 - `research_runs.context`
+- `research_plan_proposals.planning_request`
+- `research_plan_proposals.proposal_payload`
+- `research_plan_proposals.validation_result`
 - `sources.metadata`
 - `evidence.metadata`
 

@@ -34,6 +34,13 @@ from darwin.orchestration.schemas import (
     PlanItemResult,
     ResearchOrchestrationResult,
 )
+from darwin.planning import (
+    PlanningProvider,
+    ResearchPlanApprovalResult,
+    ResearchPlanProposalRead,
+    ResearchPlanner,
+    ResearchPlanningRequest,
+)
 from darwin.research import ResearchService
 from darwin.synthesis import ConclusionClaimLinkRequest, StructuredSynthesisService
 from darwin.validation import ClaimValidationService
@@ -52,6 +59,28 @@ class ResearchOrchestrator:
         )
         self.construction_service = ClaimConstructionService(session, settings)
         self.synthesis_service = StructuredSynthesisService(session, settings)
+
+    def plan_research(
+        self,
+        request: ResearchPlanningRequest,
+        *,
+        provider: PlanningProvider | None = None,
+        auto_approve: bool = False,
+    ) -> ResearchPlanProposalRead:
+        """Generate a bounded proposal without launching acquisition or research execution."""
+
+        return ResearchPlanner(self.session, self.settings, provider).plan_research(
+            request,
+            auto_approve=auto_approve,
+        )
+
+    def approve_plan(
+        self,
+        proposal_id: uuid.UUID | str,
+    ) -> ResearchPlanApprovalResult:
+        """Approve a proposal into the existing Phase 1.8 framing and plan models."""
+
+        return ResearchPlanner(self.session, self.settings).approve_plan(proposal_id)
 
     def run_manual(self, manual_input: ManualResearchInput) -> ResearchOrchestrationResult:
         self._validate_unique_keys("source", [source.source_key for source in manual_input.sources])

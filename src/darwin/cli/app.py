@@ -32,6 +32,16 @@ from darwin.db import get_engine, session_scope
 from darwin.db.models import Source, SourceContentSnapshot, SourceType
 from darwin.logging import configure_logging
 from darwin.orchestration import ManualResearchInput, ResearchOrchestrationError, ResearchOrchestrator
+from darwin.planning import (
+    FakePlanningProvider,
+    OpenAIPlanningProvider,
+    PlanningApprovalError,
+    PlanningConfigurationError,
+    PlanningProviderError,
+    PlanningValidationError,
+    ResearchPlanner,
+    ResearchPlanningRequest,
+)
 from darwin.research import ResearchService, ResearchServiceError
 from darwin.synthesis import StructuredSynthesisService
 from darwin.validation import ClaimValidationError, ClaimValidationService
@@ -235,6 +245,79 @@ def synthesize_research_run(
         raise typer.Exit(code=1) from exc
 
 
+@research_app.command("plan")
+def plan_research(
+    question: str = typer.Argument(..., help="Explicit research question to plan."),
+    objective: str | None = typer.Option(None, help="Optional planning objective."),
+    scope: str | None = typer.Option(None, help="Optional planning scope."),
+    exclusion: list[str] | None = typer.Option(None, help="Optional exclusion. Repeatable."),
+    assumption: list[str] | None = typer.Option(None, help="Optional assumption. Repeatable."),
+    domain: list[str] | None = typer.Option(None, help="Optional domain constraint. Repeatable."),
+    provider: str | None = typer.Option(None, help="Planning provider override: fake or openai."),
+    auto_approve: bool = typer.Option(False, help="Explicitly approve the proposal after planning."),
+) -> None:
+    """Generate a bounded ResearchPlanProposal without executing research."""
+
+    settings = get_settings()
+    try:
+        request = ResearchPlanningRequest(
+            research_question=question,
+            objective=objective,
+            scope=scope,
+            exclusions=exclusion or [],
+            assumptions=assumption or [],
+            domain_constraints=domain or [],
+        )
+        selected_provider = _planning_provider(settings, provider)
+        with session_scope(settings) as session:
+            proposal = ResearchPlanner(session, settings, selected_provider).plan_research(
+                request,
+                auto_approve=auto_approve,
+            )
+            _echo_plan_summary(session, settings, proposal.id)
+    except (ValidationError, PlanningConfigurationError, PlanningProviderError, PlanningValidationError) as exc:
+        typer.echo(f"Research planning failed: {exc}")
+        raise typer.Exit(code=1) from exc
+    except SQLAlchemyError as exc:
+        typer.echo(f"Research planning persistence failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+@research_app.command("plan-show")
+def show_research_plan(
+    proposal_id: str = typer.Argument(..., help="Research plan proposal UUID."),
+) -> None:
+    """Show a persisted planning proposal summary."""
+
+    settings = get_settings()
+    try:
+        with session_scope(settings) as session:
+            _echo_plan_summary(session, settings, proposal_id)
+    except (ValueError, PlanningApprovalError, SQLAlchemyError) as exc:
+        typer.echo(f"Research plan lookup failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+@research_app.command("plan-approve")
+def approve_research_plan(
+    proposal_id: str = typer.Argument(..., help="Research plan proposal UUID."),
+) -> None:
+    """Explicitly approve a proposal into a ResearchRun, framing, and pending plan items."""
+
+    settings = get_settings()
+    try:
+        with session_scope(settings) as session:
+            result = ResearchPlanner(session, settings).approve_plan(proposal_id)
+            typer.echo(f"Proposal approved: {result.proposal_id}")
+            typer.echo(f"Research run: {result.public_id}")
+            typer.echo(f"Database id: {result.research_run_id}")
+            typer.echo(f"Approval mode: {result.approval_mode.value}")
+            typer.echo(f"Plan items: {result.plan_item_count}")
+    except (ValueError, PlanningApprovalError, SQLAlchemyError) as exc:
+        typer.echo(f"Research plan approval failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
 @research_app.command("acquire")
 def acquire_sources(
     query: str = typer.Argument(..., help="Explicit external source discovery query."),
@@ -380,6 +463,39 @@ def extract_evidence(
     except SQLAlchemyError as exc:
         typer.echo(f"Evidence extraction command failed: {exc}")
         raise typer.Exit(code=1) from exc
+
+
+def _planning_provider(settings, provider: str | None):
+    provider_name = provider or settings.research_planning_provider
+    if provider_name == "fake":
+        return FakePlanningProvider(model=settings.research_planning_model)
+    if provider_name == "openai":
+        return OpenAIPlanningProvider(settings)
+    raise PlanningConfigurationError(f"unknown planning provider {provider_name!r}")
+
+
+def _echo_plan_summary(session, settings, proposal_id: str | uuid.UUID) -> None:
+    proposal = ResearchPlanner(session, settings).get_proposal(proposal_id, orm=True)
+    typer.echo(f"Proposal: {proposal.id}")
+    typer.echo(f"Approval status: {proposal.status.value}")
+    if proposal.research_run is not None:
+        typer.echo(f"Research run: {proposal.research_run.public_id}")
+    typer.echo(f"Provider: {proposal.provider_id}")
+    typer.echo(f"Model: {proposal.provider_model or 'n/a'}")
+    typer.echo(f"Method: {proposal.planner_method_version}")
+    typer.echo(f"Objective: {proposal.objective}")
+    typer.echo("Categories: " + ", ".join(proposal.research_categories))
+    typer.echo(f"Tasks: {len(proposal.items)}")
+    for item in sorted(proposal.items, key=lambda row: row.item_order):
+        required = "required" if item.is_required else "optional"
+        typer.echo(
+            f"- {item.item_key} [{required}/{item.priority.value}]: "
+            f"{item.requirement}"
+        )
+    if proposal.warnings:
+        typer.echo("Warnings: " + ", ".join(proposal.warnings))
+    if proposal.errors:
+        typer.echo("Errors: " + ", ".join(proposal.errors))
 
 
 app.add_typer(research_app, name="research")

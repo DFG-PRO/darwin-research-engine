@@ -2,7 +2,7 @@
 
 Darwin v0.1 is the initial foundation for a research and intelligence engine intended to preserve traceable evidence, validated knowledge, historical context, confidence, outcomes, errors, contradictions, assumptions, and decisions over time.
 
-Current status: **Phase 1.8I Research MVP benchmark and Phase 1.8 closure assessment**. This repository provides the technical base, persistent research schema, lifecycle persistence services, deterministic structural claim validation, a supplied-material research orchestrator, controlled external source discovery, explicit source-content snapshot/segment/evidence extraction, caller-supplied claim construction, evidence-grounded structured synthesis records, and a reproducible supplied-material benchmark. It does not implement autonomous research, crawling, semantic claim validation, automatic claim generation, confidence scoring, recommendation systems, memory retrieval, or domain intelligence features.
+Current status: **Phase 1.9A Research Task Planner foundation**. This repository provides the technical base, persistent research schema, lifecycle persistence services, deterministic structural claim validation, a supplied-material research orchestrator, controlled external source discovery, explicit source-content snapshot/segment/evidence extraction, caller-supplied claim construction, evidence-grounded structured synthesis records, a reproducible supplied-material benchmark, and a controlled research planning proposal boundary. It does not implement autonomous research, crawling, semantic claim validation, automatic claim generation, confidence scoring, recommendation systems, memory retrieval, or domain intelligence features.
 
 ## What Exists
 
@@ -19,6 +19,7 @@ Current status: **Phase 1.8I Research MVP benchmark and Phase 1.8 closure assess
 - Controlled source content fetching, artifact snapshots, deterministic segmentation, and explicit Evidence extraction.
 - Explicit caller-supplied evidence-to-claim construction with append-only construction audit records.
 - Structured synthesis records that preserve claim evidence provenance, conclusion dependencies, validation state, and deterministic warnings.
+- Controlled research plan proposals with explicit approval into Phase 1.8 framing and plan records.
 - Phase 1.8I supplied-material Research MVP benchmark artifacts and closure documentation.
 - Minimal Typer CLI.
 - Deterministic pytest coverage for imports, configuration, CLI, and database foundation setup.
@@ -71,6 +72,18 @@ Supported settings:
 - `DARWIN_CLAIM_CONSTRUCTION_METHOD_VERSION`: explicit claim construction method version. Defaults to `manual-explicit-claim-construction-1.8h`.
 - `DARWIN_STRUCTURED_SYNTHESIS_METHOD_VERSION`: structured synthesis method version. Defaults to `structured-synthesis-1.8h`.
 - `DARWIN_CLAIM_STATEMENT_MAX_CHARS`: maximum characters in one constructed Claim statement. Defaults to `2000`.
+- `DARWIN_RESEARCH_PLANNING_PROVIDER`: planning provider. Defaults to `fake`; supported values are `fake` and `openai`.
+- `DARWIN_RESEARCH_PLANNING_MODEL`: planning model identifier. Defaults to `fake-deterministic-planner-v1`.
+- `DARWIN_RESEARCH_PLANNING_METHOD_VERSION`: planning method version. Defaults to `research-planning-1.9a`.
+- `DARWIN_RESEARCH_PLANNING_PROMPT_VERSION`: planning prompt version. Defaults to `research-planning-prompt-1.9a`.
+- `DARWIN_RESEARCH_PLANNING_SCHEMA_VERSION`: planning schema version. Defaults to `research-plan-proposal-schema-1.9a`.
+- `DARWIN_RESEARCH_PLANNING_TIMEOUT_SECONDS`: HTTP timeout for live planning providers. Defaults to `20`.
+- `DARWIN_RESEARCH_PLANNING_MAX_PLAN_ITEMS`: maximum accepted proposal items. Defaults to `8`.
+- `DARWIN_RESEARCH_PLANNING_MAX_REQUIRED_PLAN_ITEMS`: maximum accepted required proposal items. Defaults to `6`.
+- `DARWIN_RESEARCH_PLANNING_MAX_CATEGORIES`: maximum accepted proposal categories. Defaults to `6`.
+- `DARWIN_RESEARCH_PLANNING_MAX_BREADTH`: maximum breadth hint. Defaults to `5`.
+- `DARWIN_RESEARCH_PLANNING_MAX_DEPTH`: maximum depth hint. Defaults to `3`.
+- `DARWIN_OPENAI_API_KEY`: required only when `DARWIN_RESEARCH_PLANNING_PROVIDER=openai`.
 
 Do not commit real secrets or local `.env` files.
 
@@ -110,6 +123,9 @@ darwin research --help
 darwin research create-run "Research question"
 darwin research get-run <run-uuid-or-public-id>
 darwin research validate-claim <claim-uuid>
+darwin research plan "Research question" --provider fake
+darwin research plan-show <proposal-uuid>
+darwin research plan-approve <proposal-uuid>
 darwin research acquire "search query" --research-run-id <run-uuid> --provider fake
 darwin research fetch-source <source-uuid> --research-run-id <run-uuid> --fetcher fake
 darwin research source-content <snapshot-uuid>
@@ -121,6 +137,8 @@ darwin research run-manual tests/fixtures/manual_research_complete.json
 ```
 
 These commands require a configured database and call the service layer directly.
+
+`darwin research plan` creates a structured planning proposal only. It does not create Sources, Evidence, Claims, Conclusions, acquisition requests, content snapshots, construction records, or synthesis records. `darwin research plan-approve` explicitly converts a proposal into a `ResearchRun`, `ResearchFraming`, and pending `ResearchPlanItem` records.
 
 `darwin research acquire` discovers source candidates and registers accepted Sources. Provider snippets remain acquisition audit material only; they are not automatically Evidence, Claims, or Conclusions.
 
@@ -180,11 +198,11 @@ Phase 1.8B defines the first domain migration:
 alembic upgrade head
 ```
 
-The current migrations create the core research data model, source lineage fields, claim validation evaluations, explicit human validation events, research framings, research plan items, synthesis records, acquisition requests, source candidates, source content snapshots, source content segments, evidence extraction records, claim construction audit records, claim construction evidence selections, and conclusion-to-claim links. They do not provision a database, crawl content, or implement autonomous research.
+The current migrations create the core research data model, source lineage fields, claim validation evaluations, explicit human validation events, research framings, research plan items, synthesis records, acquisition requests, source candidates, source content snapshots, source content segments, evidence extraction records, claim construction audit records, claim construction evidence selections, conclusion-to-claim links, planning proposals, and planning proposal items. They do not provision a database, crawl content, or implement autonomous research.
 
 ## Architectural Boundary
 
-Darwin v0.1 is documented as a modular monolith with a single orchestrator. Phase 1.8E implemented the first deterministic supplied-material orchestrator. Phase 1.8F added a provider-agnostic external acquisition layer that can feed registered Sources into the existing manual boundary. Phase 1.8G added explicit content snapshots and segment-based Evidence extraction. Phase 1.8H added explicit evidence-to-claim construction and deterministic structured synthesis. Phase 1.8I adds benchmark, audit, and closure records.
+Darwin v0.1 is documented as a modular monolith with a single orchestrator. Phase 1.8E implemented the first deterministic supplied-material orchestrator. Phase 1.8F added a provider-agnostic external acquisition layer that can feed registered Sources into the existing manual boundary. Phase 1.8G added explicit content snapshots and segment-based Evidence extraction. Phase 1.8H added explicit evidence-to-claim construction and deterministic structured synthesis. Phase 1.8I adds benchmark, audit, and closure records. Phase 1.9A adds a controlled provider-agnostic planning proposal boundary.
 
 Current v0.1 persistence decisions:
 
@@ -197,5 +215,6 @@ Current v0.1 persistence decisions:
 - Fetching content does not automatically create Evidence, Claims, validation, conclusions, or truth.
 - Evidence-to-claim construction uses caller-supplied claim text only.
 - Structured synthesis does not generate autonomous conclusions or recommendations.
+- Planning proposals do not generate Sources, Evidence, Claims, Conclusions, or autonomous acquisition.
 
 The authoritative Phase 1.8 technical record is `docs/phases/phase-1.8/PHASE-1.8-MASTER.md`. The closure assessment is `docs/phases/phase-1.8/PHASE-1.8-CLOSURE.md`.

@@ -161,6 +161,22 @@ class ResearchPlanPriority(str, enum.Enum):
     HIGH = "HIGH"
 
 
+class ResearchPlanProposalStatus(str, enum.Enum):
+    """Approval lifecycle for generated research plan proposals."""
+
+    PROPOSED = "PROPOSED"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    FAILED = "FAILED"
+
+
+class ResearchPlanApprovalMode(str, enum.Enum):
+    """Auditable mode used to approve a planning proposal."""
+
+    MANUAL = "MANUAL"
+    AUTO_APPROVED = "AUTO_APPROVED"
+
+
 class ResearchCompletionAssessment(str, enum.Enum):
     """Deterministic completion assessment for a research run."""
 
@@ -269,6 +285,9 @@ class ResearchRun(Base):
         back_populates="research_run",
     )
     claim_construction_records: Mapped[list[ClaimConstructionRecord]] = relationship(
+        back_populates="research_run",
+    )
+    approved_plan_proposals: Mapped[list[ResearchPlanProposal]] = relationship(
         back_populates="research_run",
     )
 
@@ -643,6 +662,148 @@ class ResearchPlanItem(Base):
     )
 
     research_run: Mapped[ResearchRun] = relationship(back_populates="plan_items")
+
+
+class ResearchPlanProposal(Base):
+    """Append-only planning proposal generated before research execution."""
+
+    __tablename__ = "research_plan_proposals"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    research_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("research_runs.id", ondelete="RESTRICT"),
+    )
+    original_question: Mapped[str] = mapped_column(Text, nullable=False)
+    normalized_question: Mapped[str] = mapped_column(Text, nullable=False)
+    objective: Mapped[str] = mapped_column(Text, nullable=False)
+    scope: Mapped[str] = mapped_column(Text, nullable=False)
+    exclusions: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    assumptions: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    research_categories: Mapped[list[str]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=list,
+    )
+    expected_evidence_types: Mapped[list[str]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=list,
+    )
+    suggested_source_types: Mapped[list[str]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=list,
+    )
+    status: Mapped[ResearchPlanProposalStatus] = mapped_column(
+        Enum(ResearchPlanProposalStatus, name="research_plan_proposal_status"),
+        nullable=False,
+        default=ResearchPlanProposalStatus.PROPOSED,
+    )
+    approval_mode: Mapped[ResearchPlanApprovalMode | None] = mapped_column(
+        Enum(ResearchPlanApprovalMode, name="research_plan_approval_mode"),
+    )
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    provider_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    provider_model: Mapped[str | None] = mapped_column(String(256))
+    provider_response_id: Mapped[str | None] = mapped_column(String(256))
+    planner_method_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    prompt_version: Mapped[str | None] = mapped_column(String(64))
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    warning_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    warnings: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    errors: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    planning_request: Mapped[dict[str, Any]] = mapped_column(jsonb_metadata_type, nullable=False)
+    proposal_payload: Mapped[dict[str, Any]] = mapped_column(jsonb_metadata_type, nullable=False)
+    validation_result: Mapped[dict[str, Any]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    provider_metadata: Mapped[dict[str, Any]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    usage_metadata: Mapped[dict[str, Any]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    cost_metadata: Mapped[dict[str, Any]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    planning_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata",
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+
+    research_run: Mapped[ResearchRun | None] = relationship(back_populates="approved_plan_proposals")
+    items: Mapped[list[ResearchPlanProposalItem]] = relationship(back_populates="proposal")
+
+
+class ResearchPlanProposalItem(Base):
+    """One proposed research plan item before approval."""
+
+    __tablename__ = "research_plan_proposal_items"
+    __table_args__ = (
+        UniqueConstraint("proposal_id", "item_key", name="uq_research_plan_proposal_items_key"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    proposal_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_plan_proposals.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    item_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    requirement: Mapped[str] = mapped_column(Text, nullable=False)
+    category: Mapped[str] = mapped_column(String(128), nullable=False)
+    priority: Mapped[ResearchPlanPriority] = mapped_column(
+        Enum(ResearchPlanPriority, name="research_plan_priority"),
+        nullable=False,
+        default=ResearchPlanPriority.MEDIUM,
+    )
+    is_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    status: Mapped[ResearchPlanItemStatus] = mapped_column(
+        Enum(ResearchPlanItemStatus, name="research_plan_item_status"),
+        nullable=False,
+        default=ResearchPlanItemStatus.PENDING,
+    )
+    expected_source_type: Mapped[SourceType | None] = mapped_column(
+        Enum(SourceType, name="source_type"),
+    )
+    expected_evidence_types: Mapped[list[str]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=list,
+    )
+    suggested_source_types: Mapped[list[str]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=list,
+    )
+    completion_criteria: Mapped[list[str]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=list,
+    )
+    notes: Mapped[str | None] = mapped_column(Text)
+    item_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+
+    proposal: Mapped[ResearchPlanProposal] = relationship(back_populates="items")
 
 
 class ResearchSynthesisRecord(Base):
