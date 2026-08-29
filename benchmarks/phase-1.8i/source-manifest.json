@@ -1,0 +1,60 @@
+{
+  "execution_mode": "SUPPLIED_MATERIAL_BENCHMARK",
+  "credential_check": {
+    "provider": "fake",
+    "brave_search_api_key_configured": false,
+    "live_acquisition_verified": false
+  },
+  "source_strategy": "Use supplied primary-like and high-authority benchmark excerpts to exercise Darwin's pipeline without fabricating live external research.",
+  "sources": [
+    {
+      "source_key": "exchange-a-spot-fees",
+      "authority_level": "primary_supplied",
+      "publication_date": "2026-02-01",
+      "canonical_locator": "fixture://exchange-a/spot-fees"
+    },
+    {
+      "source_key": "exchange-a-fee-mirror",
+      "authority_level": "derived_supplied",
+      "origin_source_key": "exchange-a-spot-fees",
+      "publication_date": null,
+      "canonical_locator": "fixture://mirror/exchange-a-spot-fees"
+    },
+    {
+      "source_key": "exchange-b-withdrawals",
+      "authority_level": "primary_supplied",
+      "publication_date": "2026-01-20",
+      "canonical_locator": "fixture://exchange-b/withdrawals"
+    },
+    {
+      "source_key": "exchange-c-api-limits",
+      "authority_level": "primary_supplied",
+      "publication_date": "2026-04-11",
+      "canonical_locator": "fixture://exchange-c/api-limits"
+    },
+    {
+      "source_key": "market-microstructure-background",
+      "authority_level": "high_authority_supplied",
+      "publication_date": "2024-10-15",
+      "canonical_locator": "fixture://research/market-microstructure"
+    },
+    {
+      "source_key": "retail-capital-ops",
+      "authority_level": "supplied_analysis",
+      "publication_date": "2026-08-29",
+      "canonical_locator": "fixture://benchmark/retail-capital-ops"
+    },
+    {
+      "source_key": "transfer-timing-status",
+      "authority_level": "primary_supplied",
+      "publication_date": "2026-06-15",
+      "canonical_locator": "fixture://network/status-transfer-timing"
+    },
+    {
+      "source_key": "operational-risk-notes",
+      "authority_level": "high_authority_supplied",
+      "publication_date": "2025-12-05",
+      "canonical_locator": "fixture://research/operational-risk-notes"
+    }
+  ]
+}

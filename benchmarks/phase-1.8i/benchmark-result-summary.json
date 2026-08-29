@@ -1,0 +1,64 @@
+{
+  "execution_mode": "SUPPLIED_MATERIAL_BENCHMARK",
+  "execution_date": "2026-08-29",
+  "completion_assessment": "UNRESOLVED_CONTRADICTION",
+  "acceptance_result": "PHASE_1_8_READY_TO_CLOSE",
+  "plan": {
+    "required_total": 10,
+    "required_satisfied": 10,
+    "coverage_percent": 100.0
+  },
+  "sources": {
+    "total": 8,
+    "primary_sources": 4,
+    "independent_source_origins": 7,
+    "sources_lacking_meaningful_date_metadata": 1,
+    "derived_republication_sources": 1
+  },
+  "evidence": {
+    "total": 8,
+    "snapshot_derived": 8,
+    "manual_supplied": 0,
+    "complete_source_provenance": 8,
+    "complete_snapshot_segment_provenance": 8
+  },
+  "claims": {
+    "total": 11,
+    "distribution": {
+      "SUPPORTED": 8,
+      "CORROBORATED": 2,
+      "CONTESTED": 1
+    },
+    "false_corroboration_guard": {
+      "claim_key": "fee-floor-not-independent",
+      "state": "SUPPORTED",
+      "independent_source_count": 1
+    }
+  },
+  "synthesis": {
+    "unresolved_contradictions_count": 1,
+    "evidence_gaps": [],
+    "warnings": [
+      "claim_has_unresolved_contradiction",
+      "conclusion_claim_has_unresolved_contradiction"
+    ],
+    "conclusion_count": 1
+  },
+  "process": {
+    "failed_acquisitions": null,
+    "failed_fetches": 0,
+    "unsupported_content": 0,
+    "deduplicated_sources": 0,
+    "repeated_identical_snapshots": 1,
+    "provider_requests": null,
+    "usage_units": null,
+    "estimated_cost": null,
+    "actual_cost": null
+  },
+  "completion_gate_audit": {
+    "best_achievable_run": "UNRESOLVED_CONTRADICTION",
+    "missing_required_evidence": "NEEDS_EVIDENCE",
+    "contested_critical_claim": "UNRESOLVED_CONTRADICTION",
+    "human_review_pending": "HUMAN_REVIEW_REQUIRED"
+  }
+}

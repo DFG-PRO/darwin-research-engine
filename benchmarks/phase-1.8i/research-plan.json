@@ -1,0 +1,15 @@
+{
+  "required_categories": [
+    "Trading fee economics",
+    "Spread/opportunity size",
+    "Liquidity/slippage",
+    "Transfer/withdrawal costs",
+    "Transfer/deposit timing constraints",
+    "Pre-funding / capital fragmentation",
+    "Rebalancing requirements/cost",
+    "Execution/API constraints",
+    "Operational/counterparty risks",
+    "Net viability conditions"
+  ],
+  "completion_rule": "Plan items are satisfied only by explicit evidence references, not by loosely related content."
+}

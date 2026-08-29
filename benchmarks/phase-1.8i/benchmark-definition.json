@@ -1,0 +1,19 @@
+{
+  "phase": "1.8I",
+  "name": "Research MVP benchmark: retail cross-exchange spot arbitrage viability",
+  "execution_mode": "SUPPLIED_MATERIAL_BENCHMARK",
+  "benchmark_date": "2026-08-29",
+  "question": "Is cross-exchange spot arbitrage still practically viable in 2026 for a retail operator with approximately USD 5,000 in capital, considering trading fees, spreads, slippage, liquidity, transfer/deposit/withdrawal constraints, execution latency, capital fragmentation, and rebalancing requirements?",
+  "objective": "Assess whether realistic net arbitrage opportunities can remain after operational costs and constraints for a retail-scale operator.",
+  "scope": "Operational/economic viability benchmark for Darwin's research process; not personalized financial advice.",
+  "out_of_scope": [
+    "personalized recommendation",
+    "expected guaranteed returns",
+    "leverage",
+    "derivatives",
+    "HFT",
+    "tax optimization",
+    "jurisdiction-specific legal advice",
+    "automatic strategy execution"
+  ]
+}

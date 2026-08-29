@@ -1,0 +1,38 @@
+{
+  "mode": "SUPPLIED_MATERIAL_BENCHMARK",
+  "limitation": "These are curated benchmark excerpts for process evaluation. They are not live 2026 exchange documentation and must not be treated as personalized financial advice.",
+  "materials": [
+    {
+      "source_key": "exchange-a-spot-fees",
+      "body": "A retail spot fee schedule with 0.10% maker and 0.10% taker fees means a two-leg cross-exchange trade can consume about 0.20% before spread, slippage, withdrawal, and rebalancing costs."
+    },
+    {
+      "source_key": "exchange-a-fee-mirror",
+      "body": "A mirrored copy of the same retail spot fee schedule repeats that 0.10% maker and 0.10% taker fees can consume about 0.20% across two spot trade legs before other costs."
+    },
+    {
+      "source_key": "exchange-b-withdrawals",
+      "body": "Withdrawal fees and minimum withdrawal amounts create fixed costs, and deposits or withdrawals can be delayed or suspended by network conditions, confirmation policies, wallet maintenance, or exchange risk controls."
+    },
+    {
+      "source_key": "exchange-c-api-limits",
+      "body": "Exchange API rate limits, order throttles, authentication failures, maintenance windows, and temporary trading pauses can prevent a retail operator from reliably executing both legs of a cross-exchange spot arbitrage opportunity."
+    },
+    {
+      "source_key": "market-microstructure-background",
+      "body": "The visible difference between two exchange prices is not the same as executable profit because bid ask spread, order book depth, queue position, and slippage affect the fill price for the actual order size."
+    },
+    {
+      "source_key": "retail-capital-ops",
+      "body": "With about USD 5,000 of capital, cross-exchange spot arbitrage normally requires pre-funding multiple venues, fragmenting capital, limiting trade size per venue, and paying periodic rebalancing costs after one-sided flows."
+    },
+    {
+      "source_key": "transfer-timing-status",
+      "body": "Some low-fee blockchain networks may confirm transfers in minutes under normal conditions, but final exchange crediting can still depend on confirmation thresholds, congestion, compliance checks, and venue-specific deposit policy."
+    },
+    {
+      "source_key": "operational-risk-notes",
+      "body": "Operational and counterparty risk remain relevant because exchanges can halt withdrawals, change fees, delist assets, restrict accounts, suffer outages, or experience liquidity shocks while capital is split across venues."
+    }
+  ]
+}

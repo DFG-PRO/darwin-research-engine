@@ -2,7 +2,7 @@
 
 Darwin v0.1 is the initial foundation for a research and intelligence engine intended to preserve traceable evidence, validated knowledge, historical context, confidence, outcomes, errors, contradictions, assumptions, and decisions over time.
 
-Current status: **Phase 1.8H evidence-to-claim construction and structured synthesis foundation**. This repository provides the technical base, persistent research schema, lifecycle persistence services, deterministic structural claim validation, a supplied-material research orchestrator, controlled external source discovery, explicit source-content snapshot/segment/evidence extraction, caller-supplied claim construction, and evidence-grounded structured synthesis records. It does not implement autonomous research, crawling, semantic claim validation, automatic claim generation, confidence scoring, recommendation systems, memory retrieval, or domain intelligence features.
+Current status: **Phase 1.8I Research MVP benchmark and Phase 1.8 closure assessment**. This repository provides the technical base, persistent research schema, lifecycle persistence services, deterministic structural claim validation, a supplied-material research orchestrator, controlled external source discovery, explicit source-content snapshot/segment/evidence extraction, caller-supplied claim construction, evidence-grounded structured synthesis records, and a reproducible supplied-material benchmark. It does not implement autonomous research, crawling, semantic claim validation, automatic claim generation, confidence scoring, recommendation systems, memory retrieval, or domain intelligence features.
 
 ## What Exists
 
@@ -19,6 +19,7 @@ Current status: **Phase 1.8H evidence-to-claim construction and structured synth
 - Controlled source content fetching, artifact snapshots, deterministic segmentation, and explicit Evidence extraction.
 - Explicit caller-supplied evidence-to-claim construction with append-only construction audit records.
 - Structured synthesis records that preserve claim evidence provenance, conclusion dependencies, validation state, and deterministic warnings.
+- Phase 1.8I supplied-material Research MVP benchmark artifacts and closure documentation.
 - Minimal Typer CLI.
 - Deterministic pytest coverage for imports, configuration, CLI, and database foundation setup.
 - Initial documentation directories and ADRs for decisions made in Phase 1.8A.
@@ -139,6 +140,18 @@ pytest
 
 The tests do not require a live PostgreSQL server.
 
+Run the Phase 1.8I benchmark regression tests:
+
+```bash
+pytest tests/test_phase_1_8i_benchmark.py
+```
+
+Run the benchmark directly:
+
+```bash
+python benchmarks/phase-1.8i/run_benchmark.py
+```
+
 ## Migrations
 
 Alembic is configured to use Darwin settings and SQLAlchemy metadata from `darwin.db.Base`.
@@ -171,7 +184,7 @@ The current migrations create the core research data model, source lineage field
 
 ## Architectural Boundary
 
-Darwin v0.1 is documented as a modular monolith with a single orchestrator. Phase 1.8E implemented the first deterministic supplied-material orchestrator. Phase 1.8F added a provider-agnostic external acquisition layer that can feed registered Sources into the existing manual boundary. Phase 1.8G added explicit content snapshots and segment-based Evidence extraction. Phase 1.8H adds explicit evidence-to-claim construction and deterministic structured synthesis.
+Darwin v0.1 is documented as a modular monolith with a single orchestrator. Phase 1.8E implemented the first deterministic supplied-material orchestrator. Phase 1.8F added a provider-agnostic external acquisition layer that can feed registered Sources into the existing manual boundary. Phase 1.8G added explicit content snapshots and segment-based Evidence extraction. Phase 1.8H added explicit evidence-to-claim construction and deterministic structured synthesis. Phase 1.8I adds benchmark, audit, and closure records.
 
 Current v0.1 persistence decisions:
 
@@ -185,4 +198,4 @@ Current v0.1 persistence decisions:
 - Evidence-to-claim construction uses caller-supplied claim text only.
 - Structured synthesis does not generate autonomous conclusions or recommendations.
 
-The current documentation structure reserves directories for future architecture, method, runtime, data model, decisions, and benchmark documentation without populating speculative content.
+The authoritative Phase 1.8 technical record is `docs/phases/phase-1.8/PHASE-1.8-MASTER.md`. The closure assessment is `docs/phases/phase-1.8/PHASE-1.8-CLOSURE.md`.

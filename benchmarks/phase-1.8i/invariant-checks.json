@@ -1,0 +1,12 @@
+{
+  "required_invariants": [
+    "No benchmark-critical Claim may exist without ClaimEvidence.",
+    "Every ClaimEvidence row must link to Evidence with Source provenance.",
+    "Snapshot-derived Evidence must include SourceContentSnapshot and SourceContentSegment provenance.",
+    "A derived or mirrored source must not create independent corroboration.",
+    "Contested Claims must remain visible in structured synthesis.",
+    "Required evidence gaps must prevent COMPLETE completion assessment.",
+    "Human review pending must remain explicit.",
+    "Structured synthesis must not invent Claims or Conclusions."
+  ]
+}
