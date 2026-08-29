@@ -2,7 +2,7 @@
 
 Darwin v0.1 is the initial foundation for a research and intelligence engine intended to preserve traceable evidence, validated knowledge, historical context, confidence, outcomes, errors, contradictions, assumptions, and decisions over time.
 
-Current status: **Phase 1.8A repository foundation only**. This repository currently provides the technical base for future Darwin work. It does not implement research workflows, evidence models, recommendation systems, validation pipelines, memory retrieval, or domain intelligence features.
+Current status: **Phase 1.8B core research data model foundation**. This repository provides the technical base and the first persistent storage schema for bounded research runs, sources, evidence, claims, claim/evidence relationships, and conclusions. It does not implement research execution, evidence extraction, claim validation, confidence scoring, recommendation systems, memory retrieval, or domain intelligence features.
 
 ## What Exists
 
@@ -11,6 +11,7 @@ Current status: **Phase 1.8A repository foundation only**. This repository curre
 - Consistent application logging setup.
 - PostgreSQL-oriented SQLAlchemy 2.x engine, session, and declarative metadata foundation.
 - Alembic migration environment wired to Darwin settings and SQLAlchemy metadata.
+- Core SQLAlchemy research data model and first Alembic schema migration.
 - Minimal Typer CLI.
 - Deterministic pytest coverage for imports, configuration, CLI, and database foundation setup.
 - Initial documentation directories and ADRs for decisions made in Phase 1.8A.
@@ -110,11 +111,17 @@ Inspect generated SQL without connecting to the database:
 alembic upgrade head --sql
 ```
 
-Phase 1.8A does not define Darwin domain tables, so there are no initial domain migrations.
+Phase 1.8B defines the first domain migration:
+
+```bash
+alembic upgrade head
+```
+
+The current migration creates the core research data model tables only. It does not provision a database or implement research workflows.
 
 ## Architectural Boundary
 
-Darwin v0.1 is documented as a modular monolith with a single orchestrator. Phase 1.8A does not implement the orchestrator itself.
+Darwin v0.1 is documented as a modular monolith with a single orchestrator. Phase 1.8B does not implement the orchestrator itself.
 
 Current v0.1 persistence decisions:
 

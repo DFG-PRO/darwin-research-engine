@@ -2,7 +2,7 @@
 
 This directory contains implementation notes and architectural decision records for Darwin.
 
-Current documentation is limited to Phase 1.8A repository foundation decisions and verification. Future phases should add documentation alongside implemented behavior, not ahead of it.
+Current documentation covers Phase 1.8A repository foundation decisions and Phase 1.8B core research data model decisions. Future phases should add documentation alongside implemented behavior, not ahead of it.
 
 Tracked documentation structure:
 
