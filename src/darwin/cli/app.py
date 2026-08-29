@@ -10,6 +10,7 @@ from darwin.config import get_settings
 from darwin.db import get_engine, session_scope
 from darwin.logging import configure_logging
 from darwin.research import ResearchService, ResearchServiceError
+from darwin.validation import ClaimValidationError, ClaimValidationService
 
 app = typer.Typer(
     name="darwin",
@@ -93,6 +94,35 @@ def get_research_run(identifier: str = typer.Argument(..., help="Research run UU
             typer.echo(f"Conclusions: {len(record.conclusions)}")
     except (ResearchServiceError, SQLAlchemyError) as exc:
         typer.echo(f"Research command failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+@research_app.command("validate-claim")
+def validate_claim(claim_id: str = typer.Argument(..., help="Claim UUID to validate structurally.")) -> None:
+    """Validate a claim's structural evidentiary state."""
+
+    settings = get_settings()
+    try:
+        with session_scope(settings) as session:
+            result = ClaimValidationService(session).evaluate_claim(claim_id)
+            typer.echo(f"Claim: {result.claim_id}")
+            typer.echo(f"Validation state: {result.validation_state.value}")
+            typer.echo(f"Supporting evidence: {result.supporting_evidence_count}")
+            typer.echo(f"Contradicting evidence: {result.contradicting_evidence_count}")
+            typer.echo(f"Contextual evidence: {result.contextual_evidence_count}")
+            typer.echo(f"Distinct sources: {result.distinct_source_count}")
+            typer.echo(
+                "Independent supporting sources: "
+                f"{result.independent_supporting_source_count}"
+            )
+            typer.echo(f"Contradiction exists: {result.contradiction_exists}")
+            typer.echo(f"Independent corroboration: {result.independent_corroboration_exists}")
+            typer.echo(
+                "Reasons: "
+                + ", ".join(reason.value for reason in result.reason_codes)
+            )
+    except (ClaimValidationError, ResearchServiceError, SQLAlchemyError) as exc:
+        typer.echo(f"Validation command failed: {exc}")
         raise typer.Exit(code=1) from exc
 
 

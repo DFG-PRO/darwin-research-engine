@@ -24,6 +24,7 @@ from darwin.db.models import (
     ResearchRun,
     ResearchRunStatus,
     Source,
+    SourceLineageType,
     SourceType,
     utc_now,
 )
@@ -137,9 +138,19 @@ class ResearchService:
         title: str | None = None,
         publisher: str | None = None,
         publication_date: date | None = None,
+        origin_source_id: uuid.UUID | None = None,
+        source_lineage_type: SourceLineageType | None = None,
         content_fingerprint: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> Source:
+        if (origin_source_id is None) != (source_lineage_type is None):
+            raise InvalidResearchRelationship(
+                "Source lineage requires both origin_source_id and source_lineage_type"
+            )
+        origin_source = None
+        if origin_source_id is not None:
+            origin_source = self._get_required(Source, origin_source_id, "Source")
+
         existing_source = self._find_existing_source(
             source_type=source_type,
             canonical_locator=canonical_locator,
@@ -154,6 +165,8 @@ class ResearchService:
             title=title,
             publisher=publisher,
             publication_date=publication_date,
+            origin_source=origin_source,
+            source_lineage_type=source_lineage_type,
             content_fingerprint=content_fingerprint,
             source_metadata=metadata or {},
         )

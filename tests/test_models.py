@@ -7,15 +7,21 @@ from darwin.db.models import (
     Claim,
     ClaimEvidence,
     ClaimEvidenceRelation,
+    ClaimHumanValidation,
     ClaimStatus,
     ClaimType,
+    ClaimValidationEvaluation,
+    ClaimValidationReasonCode,
+    ClaimValidationState,
     Conclusion,
     ConclusionStatus,
     Evidence,
     EvidenceType,
+    HumanValidationType,
     ResearchRun,
     ResearchRunStatus,
     Source,
+    SourceLineageType,
     SourceType,
 )
 
@@ -27,6 +33,8 @@ def test_model_imports() -> None:
     assert Claim.__tablename__ == "claims"
     assert ClaimEvidence.__tablename__ == "claim_evidence"
     assert Conclusion.__tablename__ == "conclusions"
+    assert ClaimValidationEvaluation.__tablename__ == "claim_validation_evaluations"
+    assert ClaimHumanValidation.__tablename__ == "claim_human_validations"
 
 
 def test_metadata_contains_expected_tables() -> None:
@@ -37,6 +45,8 @@ def test_metadata_contains_expected_tables() -> None:
         "claims",
         "claim_evidence",
         "conclusions",
+        "claim_validation_evaluations",
+        "claim_human_validations",
     }.issubset(Base.metadata.tables)
 
 
@@ -66,6 +76,25 @@ def test_required_fields_are_not_nullable() -> None:
         Claim: {"id", "research_run_id", "statement", "claim_type", "status", "created_at", "updated_at"},
         ClaimEvidence: {"id", "claim_id", "evidence_id", "relation", "created_at"},
         Conclusion: {"id", "research_run_id", "statement", "status", "created_at", "updated_at"},
+        ClaimValidationEvaluation: {
+            "id",
+            "claim_id",
+            "validation_state",
+            "supporting_evidence_count",
+            "contradicting_evidence_count",
+            "contextual_evidence_count",
+            "distinct_source_count",
+            "independent_supporting_source_count",
+            "independent_contradicting_source_count",
+            "independent_corroboration_exists",
+            "contradiction_exists",
+            "human_review_requested",
+            "human_validation_present",
+            "reason_codes",
+            "evaluated_at",
+            "validation_method_version",
+        },
+        ClaimHumanValidation: {"id", "claim_id", "validation_type", "created_at"},
     }
 
     for model, column_names in expected_required_columns.items():
@@ -84,8 +113,12 @@ def test_core_enums_are_small_and_explicit() -> None:
     assert ClaimStatus.PROPOSED.value == "PROPOSED"
     assert ClaimType.PROPOSITION.value == "PROPOSITION"
     assert SourceType.WEB_PAGE.value == "WEB_PAGE"
+    assert SourceLineageType.DERIVED_FROM.value == "DERIVED_FROM"
     assert EvidenceType.EXCERPT.value == "EXCERPT"
     assert ConclusionStatus.DRAFT.value == "DRAFT"
+    assert ClaimValidationState.CORROBORATED.value == "CORROBORATED"
+    assert ClaimValidationReasonCode.NO_EVIDENCE.value == "NO_EVIDENCE"
+    assert HumanValidationType.VALIDATED.value == "VALIDATED"
 
 
 def test_relationships_preserve_research_provenance() -> None:

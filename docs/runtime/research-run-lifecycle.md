@@ -16,6 +16,7 @@ Implemented responsibilities:
 - Link claims to evidence with explicit relationship semantics.
 - Register conclusions linked to a research run.
 - Retrieve an assembled research record with traceable components.
+- Validate a claim's structural evidentiary state through the validation service.
 
 The CLI calls the service layer and does not duplicate lifecycle or relationship rules.
 
@@ -99,6 +100,21 @@ The research service defines a small explicit error model:
 - `DuplicateResearchRelationship`
 
 These errors are intentionally narrow and structural.
+
+## Claim Validation Behavior
+
+Phase 1.8D adds `ClaimValidationService` as a separate service from research persistence CRUD. It loads an existing claim, evidence links, source records, and human validation events, then persists an auditable validation evaluation.
+
+The validation service:
+
+- classifies already-stored claim/evidence relationships
+- counts supporting, contradicting, and contextual evidence
+- counts distinct sources and independent source origins
+- respects explicit source lineage
+- records reason codes and method version
+- appends validation history
+
+It does not fetch sources, classify evidence, determine truth, or calculate numeric confidence.
 
 ## Current Limitations
 

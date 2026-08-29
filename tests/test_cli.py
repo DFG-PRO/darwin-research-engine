@@ -27,3 +27,4 @@ def test_research_cli_help() -> None:
     assert "Research run persistence smoke commands" in result.stdout
     assert "create-run" in result.stdout
     assert "get-run" in result.stdout
+    assert "validate-claim" in result.stdout

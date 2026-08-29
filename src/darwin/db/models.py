@@ -8,11 +8,13 @@ from datetime import UTC, date, datetime
 from typing import Any
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Date,
     DateTime,
     Enum,
     ForeignKey,
+    Integer,
     JSON,
     Numeric,
     String,
@@ -56,6 +58,13 @@ class SourceType(str, enum.Enum):
     DATASET = "DATASET"
     API = "API"
     OTHER = "OTHER"
+
+
+class SourceLineageType(str, enum.Enum):
+    """Explicit source relationship to an origin source."""
+
+    DERIVED_FROM = "DERIVED_FROM"
+    REPUBLISHED_FROM = "REPUBLISHED_FROM"
 
 
 class EvidenceType(str, enum.Enum):
@@ -102,6 +111,40 @@ class ConclusionStatus(str, enum.Enum):
     SUPERSEDED = "SUPERSEDED"
 
 
+class ClaimValidationState(str, enum.Enum):
+    """Structural validation state for a claim."""
+
+    UNASSESSED = "UNASSESSED"
+    INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
+    SUPPORTED = "SUPPORTED"
+    CORROBORATED = "CORROBORATED"
+    CONTESTED = "CONTESTED"
+    CONTRADICTED = "CONTRADICTED"
+    HUMAN_REVIEW_PENDING = "HUMAN_REVIEW_PENDING"
+    HUMAN_VALIDATED = "HUMAN_VALIDATED"
+
+
+class ClaimValidationReasonCode(str, enum.Enum):
+    """Machine-readable reasons for a claim validation state."""
+
+    NO_EVIDENCE = "NO_EVIDENCE"
+    SINGLE_SUPPORTING_SOURCE = "SINGLE_SUPPORTING_SOURCE"
+    MULTIPLE_INDEPENDENT_SUPPORTING_SOURCES = "MULTIPLE_INDEPENDENT_SUPPORTING_SOURCES"
+    CONTRADICTORY_EVIDENCE_PRESENT = "CONTRADICTORY_EVIDENCE_PRESENT"
+    ONLY_CONTRADICTING_EVIDENCE = "ONLY_CONTRADICTING_EVIDENCE"
+    ONLY_CONTEXTUAL_EVIDENCE = "ONLY_CONTEXTUAL_EVIDENCE"
+    DERIVED_SOURCES_NOT_COUNTED_AS_INDEPENDENT = "DERIVED_SOURCES_NOT_COUNTED_AS_INDEPENDENT"
+    HUMAN_REVIEW_REQUIRED = "HUMAN_REVIEW_REQUIRED"
+    HUMAN_VALIDATION_PRESENT = "HUMAN_VALIDATION_PRESENT"
+
+
+class HumanValidationType(str, enum.Enum):
+    """Explicit human validation event type."""
+
+    REVIEW_REQUESTED = "REVIEW_REQUESTED"
+    VALIDATED = "VALIDATED"
+
+
 class ResearchRun(Base):
     """One bounded research investigation."""
 
@@ -145,6 +188,13 @@ class Source(Base):
     """A source used during research."""
 
     __tablename__ = "sources"
+    __table_args__ = (
+        CheckConstraint(
+            "(origin_source_id is null and source_lineage_type is null) "
+            "or (origin_source_id is not null and source_lineage_type is not null)",
+            name="ck_sources_lineage_pair",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     source_type: Mapped[SourceType] = mapped_column(
@@ -155,6 +205,12 @@ class Source(Base):
     title: Mapped[str | None] = mapped_column(Text)
     publisher: Mapped[str | None] = mapped_column(Text)
     publication_date: Mapped[date | None] = mapped_column(Date)
+    origin_source_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("sources.id", ondelete="RESTRICT"),
+    )
+    source_lineage_type: Mapped[SourceLineageType | None] = mapped_column(
+        Enum(SourceLineageType, name="source_lineage_type"),
+    )
     retrieved_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -174,6 +230,7 @@ class Source(Base):
     )
 
     evidence_items: Mapped[list[Evidence]] = relationship(back_populates="source")
+    origin_source: Mapped[Source | None] = relationship(remote_side=[id])
 
 
 class Evidence(Base):
@@ -255,6 +312,12 @@ class Claim(Base):
 
     research_run: Mapped[ResearchRun] = relationship(back_populates="claims")
     evidence_links: Mapped[list[ClaimEvidence]] = relationship(back_populates="claim")
+    validation_evaluations: Mapped[list[ClaimValidationEvaluation]] = relationship(
+        back_populates="claim",
+    )
+    human_validation_events: Mapped[list[ClaimHumanValidation]] = relationship(
+        back_populates="claim",
+    )
 
 
 class ClaimEvidence(Base):
@@ -322,3 +385,63 @@ class Conclusion(Base):
     )
 
     research_run: Mapped[ResearchRun] = relationship(back_populates="conclusions")
+
+
+class ClaimValidationEvaluation(Base):
+    """Auditable structural validation result for a claim."""
+
+    __tablename__ = "claim_validation_evaluations"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    claim_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("claims.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    validation_state: Mapped[ClaimValidationState] = mapped_column(
+        Enum(ClaimValidationState, name="claim_validation_state"),
+        nullable=False,
+    )
+    supporting_evidence_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    contradicting_evidence_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    contextual_evidence_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    distinct_source_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    independent_supporting_source_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    independent_contradicting_source_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    independent_corroboration_exists: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    contradiction_exists: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    human_review_requested: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    human_validation_present: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    reason_codes: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    evaluated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+    validation_method_version: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    claim: Mapped[Claim] = relationship(back_populates="validation_evaluations")
+
+
+class ClaimHumanValidation(Base):
+    """Explicit human review or validation event for a claim."""
+
+    __tablename__ = "claim_human_validations"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    claim_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("claims.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    validation_type: Mapped[HumanValidationType] = mapped_column(
+        Enum(HumanValidationType, name="human_validation_type"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+    validator_label: Mapped[str | None] = mapped_column(String(128))
+    note: Mapped[str | None] = mapped_column(Text)
+
+    claim: Mapped[Claim] = relationship(back_populates="human_validation_events")

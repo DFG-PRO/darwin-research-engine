@@ -29,6 +29,8 @@ Core fields:
 - `source_type`: explicit source category.
 - `canonical_locator`: canonical URL, path, or external identifier.
 - `title`, `publisher`, `publication_date`: optional descriptive metadata.
+- `origin_source_id`: optional explicit link to the source this source derives from or republishes.
+- `source_lineage_type`: optional lineage type such as `DERIVED_FROM` or `REPUBLISHED_FROM`.
 - `retrieved_at`: timestamp for when the source was retrieved or observed.
 - `content_fingerprint`: optional hash/fingerprint for content identity.
 - `metadata`: JSONB payload for additional source metadata.
@@ -110,6 +112,43 @@ Foreign keys use restrictive delete behavior to avoid accidental destructive rem
 
 Phase 1.8C adds service-layer validation requiring `ClaimEvidence` records to link claims and evidence from the same research run.
 
+Phase 1.8D adds source lineage so distinct source records are not automatically counted as independent corroboration.
+
+### ClaimValidationEvaluation
+
+Represents one auditable deterministic structural validation evaluation for a claim.
+
+Core fields:
+
+- `id`: UUID primary key.
+- `claim_id`: required link to the claim.
+- `validation_state`: explicit structural validation state.
+- evidence/source counts used by the evaluation.
+- `independent_corroboration_exists`: whether independent support exists.
+- `contradiction_exists`: whether contradiction is present.
+- `human_review_requested`: whether explicit human review is currently represented.
+- `human_validation_present`: whether explicit human validation is currently represented.
+- `reason_codes`: JSONB array of explicit reason-code strings.
+- `evaluated_at`: evaluation timestamp.
+- `validation_method_version`: method version used.
+
+Evaluations are history-friendly records; new evaluations are appended rather than overwriting previous rows.
+
+### ClaimHumanValidation
+
+Represents an explicit human review or validation event.
+
+Core fields:
+
+- `id`: UUID primary key.
+- `claim_id`: required link to the claim.
+- `validation_type`: `REVIEW_REQUESTED` or `VALIDATED`.
+- `created_at`: event timestamp.
+- `validator_label`: optional non-sensitive label.
+- `note`: optional note.
+
+Human validation is never inferred.
+
 ## Provenance Model
 
 Provenance is relational, not hidden in JSON:
@@ -162,6 +201,8 @@ Phase 1.8C enforces these persistence rules above the database schema:
 - Claim/evidence links cannot cross research run boundaries.
 - Duplicate claim/evidence links fail explicitly.
 - Source registration reuses deterministic duplicates by fingerprint or canonical identity.
+- Claim validation appends auditable evaluation records.
+- Human review and validation require explicit persisted events.
 
 ## Current Limitations
 
