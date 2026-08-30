@@ -257,6 +257,56 @@ Core fields:
 
 Approval copies proposal content into the existing `ResearchFraming` and `ResearchPlanItem` models. Planning proposal records do not replace Phase 1.8 research plans.
 
+### AssistedEvidenceExtractionRequest
+
+Phase 1.9B adds assisted extraction request persistence before canonical Evidence acceptance.
+
+Core fields:
+
+- `id`: UUID primary key.
+- `research_run_id`: required link to the research run.
+- `research_plan_item_id`: required link to the plan item that caused extraction.
+- `source_id`: required source link.
+- `snapshot_id`: required source content snapshot link.
+- `segment_ids`: JSONB list of selected segment ids.
+- `research_objective`: objective supplied to the extraction boundary.
+- `evidence_requirement`: plan-item evidence requirement.
+- `expected_evidence_type`: optional expected canonical Evidence type.
+- `extraction_instructions`: optional caller instructions.
+- `freshness_start`, `freshness_end`: optional freshness context.
+- `max_candidate_count`: request-level candidate bound.
+- provider/model/response fields.
+- method, prompt, and schema version fields.
+- `status`: `COMPLETED` or `FAILED`.
+- candidate, warning, and error counts.
+- warnings, errors, request payload, validation result, provider metadata, usage metadata, cost metadata, and request metadata.
+- `created_at`, `completed_at`: timestamps.
+
+### EvidenceCandidateProposal
+
+Represents a provider-proposed evidence candidate. It is not canonical Evidence.
+
+Core fields:
+
+- `id`: UUID primary key.
+- `extraction_request_id`: required link to the assisted extraction request.
+- `research_run_id`, `research_plan_item_id`, `source_id`, `snapshot_id`, `source_content_segment_id`: explicit provenance.
+- `evidence_id`: nullable link populated only after explicit acceptance.
+- `candidate_key`: key unique within the extraction request.
+- `exact_excerpt`: provider-proposed text.
+- `start_offset`, `end_offset`: segment-relative offsets.
+- `proposed_evidence_type`: proposed Evidence type.
+- `relevance_explanation`: provider explanation.
+- `supports_research_task`: whether the provider says it supports the task.
+- `temporal_applicability`: optional applicability note.
+- `status`: `VALIDATED`, `REJECTED_INVALID_GROUNDING`, `REJECTED`, or `ACCEPTED`.
+- `acceptance_mode`: nullable `MANUAL` or `AUTO_ACCEPTED`.
+- acceptance/rejection timestamps and rejection reason.
+- provider warnings, structural validation, grounding validation, and provider metadata.
+- `created_at`: candidate creation timestamp.
+
+Canonical Evidence remains stored only in `evidence`.
+
 ## Provenance Model
 
 Provenance is relational, not hidden in JSON:
@@ -268,12 +318,17 @@ Provenance is relational, not hidden in JSON:
 - Conclusions link to research runs.
 - Research plan proposals may link to one approved research run.
 - Research plan proposals have many proposed plan item rows.
+- Assisted extraction requests link to one research run, plan item, source, and snapshot.
+- Evidence candidate proposals link to one assisted extraction request and one source content segment.
+- Accepted evidence candidate proposals may link to one canonical Evidence row.
 
 This allows future validation, contradiction tracking, and historical retrieval work to build on explicit relationships.
 
 Phase 1.8C retrieval returns sources used through evidence, evidence, claims, claim/evidence relationships, and conclusions in one traceable read model.
 
 Phase 1.9A planning proposal provenance is intentionally separate from Evidence, Claims, and Conclusions. A proposal may suggest what evidence to seek, but it does not create or validate evidence.
+
+Phase 1.9B evidence candidate provenance is also separate from canonical Evidence until explicit acceptance. A candidate must be exactly grounded in stored segment text before it can be accepted.
 
 ## Lifecycle and Status Concepts
 
@@ -284,6 +339,9 @@ Current enum sets are intentionally small:
 - Conclusions: `DRAFT`, `FINAL`, `SUPERSEDED`.
 - Research plan proposals: `PROPOSED`, `APPROVED`, `REJECTED`, `FAILED`.
 - Research plan approval modes: `MANUAL`, `AUTO_APPROVED`.
+- Assisted extraction requests: `COMPLETED`, `FAILED`.
+- Evidence candidates: `VALIDATED`, `REJECTED_INVALID_GROUNDING`, `REJECTED`, `ACCEPTED`.
+- Evidence candidate acceptance modes: `MANUAL`, `AUTO_ACCEPTED`.
 
 These states provide foundation-level lifecycle clarity without implementing research execution behavior.
 
@@ -303,6 +361,10 @@ JSONB is used only for flexible metadata and context payloads:
 - `research_plan_proposals.planning_request`
 - `research_plan_proposals.proposal_payload`
 - `research_plan_proposals.validation_result`
+- `assisted_evidence_extraction_requests.request_payload`
+- `assisted_evidence_extraction_requests.validation_result`
+- `evidence_candidate_proposals.structural_validation`
+- `evidence_candidate_proposals.grounding_validation`
 - `sources.metadata`
 - `evidence.metadata`
 

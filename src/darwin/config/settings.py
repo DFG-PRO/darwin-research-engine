@@ -170,6 +170,53 @@ class Settings(BaseSettings):
         default=None,
         description="OpenAI API credential for optional live planning. Never persisted.",
     )
+    assisted_evidence_extraction_provider: Literal["fake", "openai"] = Field(
+        default="fake",
+        description="Assisted evidence extraction provider identifier.",
+    )
+    assisted_evidence_extraction_model: str = Field(
+        default="fake-evidence-extractor-v1",
+        description="Provider model identifier for assisted evidence extraction.",
+    )
+    assisted_evidence_extraction_method_version: str = Field(
+        default="assisted-evidence-extraction-1.9b",
+        description="Version identifier for assisted evidence extraction.",
+    )
+    assisted_evidence_extraction_prompt_version: str = Field(
+        default="assisted-evidence-extraction-prompt-1.9b",
+        description="Version identifier for assisted extraction prompt semantics.",
+    )
+    assisted_evidence_extraction_schema_version: str = Field(
+        default="evidence-candidate-proposal-schema-1.9b",
+        description="Version identifier for assisted extraction structured output.",
+    )
+    assisted_evidence_extraction_timeout_seconds: float = Field(
+        default=20.0,
+        ge=0.1,
+        description="HTTP timeout for configured live extraction providers.",
+    )
+    assisted_evidence_extraction_max_segments: int = Field(
+        default=5,
+        ge=1,
+        le=25,
+        description="Maximum source content segments per assisted extraction request.",
+    )
+    assisted_evidence_extraction_max_candidates: int = Field(
+        default=5,
+        ge=1,
+        le=25,
+        description="Maximum evidence candidates per assisted extraction request.",
+    )
+    assisted_evidence_extraction_max_segment_chars: int = Field(
+        default=4000,
+        ge=1,
+        description="Maximum characters allowed in any submitted segment.",
+    )
+    assisted_evidence_extraction_max_total_request_chars: int = Field(
+        default=12000,
+        ge=1,
+        description="Maximum total segment characters submitted in one extraction request.",
+    )
 
 
 @lru_cache

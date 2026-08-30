@@ -4,6 +4,8 @@ from sqlalchemy import inspect
 
 from darwin.db import Base
 from darwin.db.models import (
+    AssistedEvidenceExtractionRequest,
+    AssistedExtractionRequestStatus,
     Claim,
     ClaimConstructionEvidence,
     ClaimConstructionMethod,
@@ -21,6 +23,9 @@ from darwin.db.models import (
     ConclusionClaimRelation,
     ConclusionStatus,
     Evidence,
+    EvidenceCandidateAcceptanceMode,
+    EvidenceCandidateProposal,
+    EvidenceCandidateStatus,
     EvidenceType,
     HumanValidationType,
     ResearchCompletionAssessment,
@@ -47,6 +52,8 @@ def test_model_imports() -> None:
     assert ClaimConstructionRecord.__tablename__ == "claim_construction_records"
     assert ClaimConstructionEvidence.__tablename__ == "claim_construction_evidence"
     assert ConclusionClaim.__tablename__ == "conclusion_claims"
+    assert AssistedEvidenceExtractionRequest.__tablename__ == "assisted_evidence_extraction_requests"
+    assert EvidenceCandidateProposal.__tablename__ == "evidence_candidate_proposals"
     assert ClaimValidationEvaluation.__tablename__ == "claim_validation_evaluations"
     assert ClaimHumanValidation.__tablename__ == "claim_human_validations"
     assert ResearchFraming.__tablename__ == "research_framings"
@@ -70,6 +77,8 @@ def test_metadata_contains_expected_tables() -> None:
         "research_framings",
         "research_plan_items",
         "research_synthesis_records",
+        "assisted_evidence_extraction_requests",
+        "evidence_candidate_proposals",
     }.issubset(Base.metadata.tables)
 
 

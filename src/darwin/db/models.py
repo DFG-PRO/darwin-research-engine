@@ -222,6 +222,29 @@ class EvidenceExtractionStatus(str, enum.Enum):
     FAILED = "FAILED"
 
 
+class AssistedExtractionRequestStatus(str, enum.Enum):
+    """Execution state for assisted evidence candidate extraction."""
+
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class EvidenceCandidateStatus(str, enum.Enum):
+    """Lifecycle state for assisted evidence candidate proposals."""
+
+    VALIDATED = "VALIDATED"
+    REJECTED_INVALID_GROUNDING = "REJECTED_INVALID_GROUNDING"
+    REJECTED = "REJECTED"
+    ACCEPTED = "ACCEPTED"
+
+
+class EvidenceCandidateAcceptanceMode(str, enum.Enum):
+    """Auditable mode used to accept an evidence candidate."""
+
+    MANUAL = "MANUAL"
+    AUTO_ACCEPTED = "AUTO_ACCEPTED"
+
+
 class ClaimConstructionMethod(str, enum.Enum):
     """Method used to construct a claim from evidence."""
 
@@ -288,6 +311,9 @@ class ResearchRun(Base):
         back_populates="research_run",
     )
     approved_plan_proposals: Mapped[list[ResearchPlanProposal]] = relationship(
+        back_populates="research_run",
+    )
+    assisted_extraction_requests: Mapped[list[AssistedEvidenceExtractionRequest]] = relationship(
         back_populates="research_run",
     )
 
@@ -386,6 +412,9 @@ class Evidence(Base):
         back_populates="evidence",
     )
     construction_evidence_links: Mapped[list[ClaimConstructionEvidence]] = relationship(
+        back_populates="evidence",
+    )
+    accepted_candidate: Mapped[EvidenceCandidateProposal | None] = relationship(
         back_populates="evidence",
     )
 
@@ -662,6 +691,9 @@ class ResearchPlanItem(Base):
     )
 
     research_run: Mapped[ResearchRun] = relationship(back_populates="plan_items")
+    assisted_extraction_requests: Mapped[list[AssistedEvidenceExtractionRequest]] = relationship(
+        back_populates="research_plan_item",
+    )
 
 
 class ResearchPlanProposal(Base):
@@ -1044,6 +1076,9 @@ class SourceContentSnapshot(Base):
     extraction_records: Mapped[list[EvidenceExtractionRecord]] = relationship(
         back_populates="snapshot",
     )
+    assisted_extraction_requests: Mapped[list[AssistedEvidenceExtractionRequest]] = relationship(
+        back_populates="snapshot",
+    )
 
 
 class SourceContentSegment(Base):
@@ -1085,6 +1120,9 @@ class SourceContentSegment(Base):
     snapshot: Mapped[SourceContentSnapshot] = relationship(back_populates="segments")
     source: Mapped[Source] = relationship()
     extraction_records: Mapped[list[EvidenceExtractionRecord]] = relationship(
+        back_populates="segment",
+    )
+    evidence_candidate_proposals: Mapped[list[EvidenceCandidateProposal]] = relationship(
         back_populates="segment",
     )
 
@@ -1143,6 +1181,187 @@ class EvidenceExtractionRecord(Base):
     snapshot: Mapped[SourceContentSnapshot] = relationship(back_populates="extraction_records")
     segment: Mapped[SourceContentSegment] = relationship(back_populates="extraction_records")
     evidence: Mapped[Evidence | None] = relationship(back_populates="extraction_records")
+
+
+class AssistedEvidenceExtractionRequest(Base):
+    """Audit record for one assisted evidence candidate extraction attempt."""
+
+    __tablename__ = "assisted_evidence_extraction_requests"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    research_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    research_plan_item_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_plan_items.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    source_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("sources.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("source_content_snapshots.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    segment_ids: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    research_objective: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_requirement: Mapped[str] = mapped_column(Text, nullable=False)
+    expected_evidence_type: Mapped[EvidenceType | None] = mapped_column(
+        Enum(EvidenceType, name="evidence_type"),
+    )
+    extraction_instructions: Mapped[str | None] = mapped_column(Text)
+    freshness_start: Mapped[date | None] = mapped_column(Date)
+    freshness_end: Mapped[date | None] = mapped_column(Date)
+    max_candidate_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    provider_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    provider_model: Mapped[str | None] = mapped_column(String(256))
+    provider_response_id: Mapped[str | None] = mapped_column(String(256))
+    extraction_method_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    prompt_version: Mapped[str | None] = mapped_column(String(64))
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[AssistedExtractionRequestStatus] = mapped_column(
+        Enum(AssistedExtractionRequestStatus, name="assisted_extraction_request_status"),
+        nullable=False,
+    )
+    candidate_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    accepted_candidate_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    warning_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    warnings: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    errors: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    request_payload: Mapped[dict[str, Any]] = mapped_column(jsonb_metadata_type, nullable=False)
+    validation_result: Mapped[dict[str, Any]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    provider_metadata: Mapped[dict[str, Any]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    usage_metadata: Mapped[dict[str, Any]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    cost_metadata: Mapped[dict[str, Any]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    request_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata",
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    research_run: Mapped[ResearchRun] = relationship(back_populates="assisted_extraction_requests")
+    research_plan_item: Mapped[ResearchPlanItem] = relationship(
+        back_populates="assisted_extraction_requests",
+    )
+    source: Mapped[Source] = relationship()
+    snapshot: Mapped[SourceContentSnapshot] = relationship(
+        back_populates="assisted_extraction_requests",
+    )
+    candidates: Mapped[list[EvidenceCandidateProposal]] = relationship(back_populates="request")
+
+
+class EvidenceCandidateProposal(Base):
+    """Provider-proposed evidence candidate grounded in stored source content."""
+
+    __tablename__ = "evidence_candidate_proposals"
+    __table_args__ = (
+        UniqueConstraint("extraction_request_id", "candidate_key", name="uq_evidence_candidate_key"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    extraction_request_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("assisted_evidence_extraction_requests.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    research_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    research_plan_item_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_plan_items.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    source_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("sources.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("source_content_snapshots.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    source_content_segment_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("source_content_segments.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    evidence_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("evidence.id", ondelete="RESTRICT"),
+    )
+    candidate_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    exact_excerpt: Mapped[str] = mapped_column(Text, nullable=False)
+    start_offset: Mapped[int] = mapped_column(Integer, nullable=False)
+    end_offset: Mapped[int] = mapped_column(Integer, nullable=False)
+    proposed_evidence_type: Mapped[EvidenceType] = mapped_column(
+        Enum(EvidenceType, name="evidence_type"),
+        nullable=False,
+    )
+    relevance_explanation: Mapped[str] = mapped_column(Text, nullable=False)
+    supports_research_task: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    temporal_applicability: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[EvidenceCandidateStatus] = mapped_column(
+        Enum(EvidenceCandidateStatus, name="evidence_candidate_status"),
+        nullable=False,
+    )
+    acceptance_mode: Mapped[EvidenceCandidateAcceptanceMode | None] = mapped_column(
+        Enum(EvidenceCandidateAcceptanceMode, name="evidence_candidate_acceptance_mode"),
+    )
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    rejected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    rejection_reason: Mapped[str | None] = mapped_column(Text)
+    provider_warnings: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    structural_validation: Mapped[dict[str, Any]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    grounding_validation: Mapped[dict[str, Any]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    provider_metadata: Mapped[dict[str, Any]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+
+    request: Mapped[AssistedEvidenceExtractionRequest] = relationship(back_populates="candidates")
+    research_run: Mapped[ResearchRun] = relationship()
+    research_plan_item: Mapped[ResearchPlanItem] = relationship()
+    source: Mapped[Source] = relationship()
+    snapshot: Mapped[SourceContentSnapshot] = relationship()
+    segment: Mapped[SourceContentSegment] = relationship(back_populates="evidence_candidate_proposals")
+    evidence: Mapped[Evidence | None] = relationship(back_populates="accepted_candidate")
 
 
 class ClaimConstructionRecord(Base):

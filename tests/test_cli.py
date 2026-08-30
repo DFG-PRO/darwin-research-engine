@@ -8,10 +8,15 @@ from darwin.db import Base
 from darwin.db.models import (
     Claim,
     Evidence,
+    EvidenceCandidateProposal,
+    ResearchPlanItem,
+    ResearchPlanItemStatus,
+    ResearchPlanPriority,
     ResearchPlanProposal,
     ResearchRun,
     SourceContentSegment,
     SourceContentSnapshot,
+    SourceFetchStatus,
     SourceType,
 )
 from darwin.research import ResearchService
@@ -46,6 +51,10 @@ def test_research_cli_help() -> None:
     assert "plan" in result.stdout
     assert "plan-show" in result.stdout
     assert "plan-approve" in result.stdout
+    assert "propose-evidence" in result.stdout
+    assert "evidence-candidates" in result.stdout
+    assert "accept-evidence" in result.stdout
+    assert "reject-evidence" in result.stdout
     assert "acquire" in result.stdout
     assert "fetch-source" in result.stdout
     assert "source-content" in result.stdout
@@ -107,6 +116,10 @@ def test_source_content_cli_help() -> None:
     assert runner.invoke(app, ["research", "plan", "--help"]).exit_code == 0
     assert runner.invoke(app, ["research", "plan-show", "--help"]).exit_code == 0
     assert runner.invoke(app, ["research", "plan-approve", "--help"]).exit_code == 0
+    assert runner.invoke(app, ["research", "propose-evidence", "--help"]).exit_code == 0
+    assert runner.invoke(app, ["research", "evidence-candidates", "--help"]).exit_code == 0
+    assert runner.invoke(app, ["research", "accept-evidence", "--help"]).exit_code == 0
+    assert runner.invoke(app, ["research", "reject-evidence", "--help"]).exit_code == 0
 
 
 def test_research_planner_cli_plan_show_and_approve(tmp_path, monkeypatch) -> None:
@@ -208,6 +221,116 @@ def test_source_content_cli_fake_fetch_and_extract(tmp_path, monkeypatch) -> Non
     assert "Segments: 1" in list_result.stdout
     assert extract_result.exit_code == 0
     assert "Extraction status: EXTRACTED" in extract_result.stdout
+    with session_factory() as session:
+        assert session.query(Evidence).count() == 1
+        assert session.query(Claim).count() == 0
+
+
+def test_assisted_extraction_cli_propose_list_accept(tmp_path, monkeypatch) -> None:
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'darwin-assisted.sqlite'}"
+    engine = create_engine(database_url)
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine, expire_on_commit=False)
+    with session_factory() as session:
+        service = ResearchService(session)
+        research_run = service.create_research_run(
+            title="CLI assisted extraction run",
+            research_method_version="0.1.0",
+            darwin_version="0.1.0",
+        )
+        plan_item = ResearchPlanItem(
+            research_run=research_run,
+            item_key="cli-plan",
+            requirement="Find an exact excerpt.",
+            category="primary",
+            priority=ResearchPlanPriority.HIGH,
+            is_required=True,
+            status=ResearchPlanItemStatus.PENDING,
+            expected_source_type=SourceType.WEB_PAGE,
+        )
+        session.add(plan_item)
+        source = service.register_source(
+            source_type=SourceType.WEB_PAGE,
+            canonical_locator="https://example.com/assisted",
+        )
+        snapshot = SourceContentSnapshot(
+            research_run=research_run,
+            source=source,
+            requested_locator=source.canonical_locator,
+            final_locator=source.canonical_locator,
+            fetch_status=SourceFetchStatus.SUCCESS,
+            retrieval_method_version="fake",
+            normalization_method_version="fake",
+            segment_count=1,
+        )
+        session.add_all([plan_item, snapshot])
+        session.flush()
+        segment = SourceContentSegment(
+            snapshot=snapshot,
+            source=source,
+            segment_identifier="seg-1",
+            segment_order=0,
+            text="Assisted extraction keeps candidates separate from Evidence.",
+            locator="https://example.com/assisted#seg-1",
+            char_start=0,
+            char_end=58,
+            line_start=1,
+            line_end=1,
+            fingerprint="cli-fingerprint",
+        )
+        session.add(segment)
+        session.commit()
+        ids = {
+            "run": str(research_run.id),
+            "plan": str(plan_item.id),
+            "source": str(source.id),
+            "snapshot": str(snapshot.id),
+            "segment": str(segment.id),
+        }
+
+    monkeypatch.setenv("DARWIN_DATABASE_URL", database_url)
+    monkeypatch.setenv("DARWIN_ASSISTED_EVIDENCE_EXTRACTION_PROVIDER", "fake")
+    get_settings.cache_clear()
+    try:
+        propose_result = CliRunner().invoke(
+            app,
+            [
+                "research",
+                "propose-evidence",
+                "--research-run-id",
+                ids["run"],
+                "--research-plan-item-id",
+                ids["plan"],
+                "--source-id",
+                ids["source"],
+                "--snapshot-id",
+                ids["snapshot"],
+                "--segment-id",
+                ids["segment"],
+                "--objective",
+                "CLI objective",
+                "--requirement",
+                "CLI requirement",
+                "--provider",
+                "fake",
+            ],
+        )
+        with session_factory() as session:
+            candidate_id = str(session.query(EvidenceCandidateProposal).one().id)
+            assert session.query(Evidence).count() == 0
+
+        list_result = CliRunner().invoke(app, ["research", "evidence-candidates"])
+        accept_result = CliRunner().invoke(app, ["research", "accept-evidence", candidate_id])
+    finally:
+        get_settings.cache_clear()
+
+    assert propose_result.exit_code == 0
+    assert "Candidates: 1" in propose_result.stdout
+    assert "Status: VALIDATED" in propose_result.stdout
+    assert list_result.exit_code == 0
+    assert "Candidates: 1" in list_result.stdout
+    assert accept_result.exit_code == 0
+    assert "Status: ACCEPTED" in accept_result.stdout
     with session_factory() as session:
         assert session.query(Evidence).count() == 1
         assert session.query(Claim).count() == 0

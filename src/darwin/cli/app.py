@@ -30,6 +30,17 @@ from darwin.content import (
 from darwin.construction import ClaimConstructionError, ClaimConstructionRequest, ClaimConstructionService
 from darwin.db import get_engine, session_scope
 from darwin.db.models import Source, SourceContentSnapshot, SourceType
+from darwin.extraction import (
+    AssistedEvidenceExtractionRequest,
+    AssistedEvidenceExtractionService,
+    EvidenceCandidateAcceptanceError,
+    EvidenceCandidateRejectionError,
+    ExtractionConfigurationError,
+    ExtractionProviderError,
+    ExtractionValidationError,
+    FakeEvidenceExtractionProvider,
+    OpenAIEvidenceExtractionProvider,
+)
 from darwin.logging import configure_logging
 from darwin.orchestration import ManualResearchInput, ResearchOrchestrationError, ResearchOrchestrator
 from darwin.planning import (
@@ -465,6 +476,120 @@ def extract_evidence(
         raise typer.Exit(code=1) from exc
 
 
+@research_app.command("propose-evidence")
+def propose_assisted_evidence(
+    research_run_id: str = typer.Option(..., help="Research run UUID."),
+    research_plan_item_id: str = typer.Option(..., help="Research plan item UUID."),
+    source_id: str = typer.Option(..., help="Source UUID."),
+    snapshot_id: str = typer.Option(..., help="Source content snapshot UUID."),
+    segment_id: list[str] | None = typer.Option(None, help="Source content segment UUID. Repeatable."),
+    objective: str = typer.Option(..., help="Research objective for extraction."),
+    requirement: str = typer.Option(..., help="Evidence requirement for extraction."),
+    provider: str | None = typer.Option(None, help="Assisted extraction provider override: fake or openai."),
+    max_candidates: int = typer.Option(3, min=1, help="Maximum evidence candidates."),
+) -> None:
+    """Propose grounded Evidence candidates without creating canonical Evidence."""
+
+    settings = get_settings()
+    try:
+        request = AssistedEvidenceExtractionRequest(
+            research_run_id=research_run_id,
+            research_plan_item_id=research_plan_item_id,
+            source_id=source_id,
+            snapshot_id=snapshot_id,
+            segment_ids=[uuid.UUID(value) for value in segment_id or []],
+            research_objective=objective,
+            evidence_requirement=requirement,
+            max_candidate_count=max_candidates,
+        )
+        selected_provider = _assisted_extraction_provider(settings, provider)
+        with session_scope(settings) as session:
+            result = AssistedEvidenceExtractionService(
+                session,
+                settings,
+                selected_provider,
+            ).propose_evidence(request)
+            typer.echo(f"Extraction request: {result.extraction_request_id}")
+            typer.echo(f"Provider: {result.provider_id}")
+            typer.echo(f"Model: {result.provider_model or 'n/a'}")
+            typer.echo(f"Candidates: {result.candidate_count}")
+            for candidate in result.candidates:
+                _echo_candidate(candidate)
+            if result.warnings:
+                typer.echo("Warnings: " + ", ".join(result.warnings))
+    except (
+        ValueError,
+        ValidationError,
+        ExtractionConfigurationError,
+        ExtractionProviderError,
+        ExtractionValidationError,
+        SQLAlchemyError,
+    ) as exc:
+        typer.echo(f"Assisted evidence proposal failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+@research_app.command("evidence-candidates")
+def list_evidence_candidates(
+    extraction_request_id: str | None = typer.Option(None, help="Optional extraction request UUID."),
+) -> None:
+    """List persisted assisted evidence candidates."""
+
+    settings = get_settings()
+    try:
+        with session_scope(settings) as session:
+            candidates = AssistedEvidenceExtractionService(session, settings).list_candidates(
+                extraction_request_id
+            )
+            typer.echo(f"Candidates: {len(candidates)}")
+            for candidate in candidates:
+                _echo_candidate(candidate)
+    except (ValueError, SQLAlchemyError) as exc:
+        typer.echo(f"Evidence candidate listing failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+@research_app.command("accept-evidence")
+def accept_assisted_evidence(
+    candidate_id: str = typer.Argument(..., help="Evidence candidate UUID."),
+) -> None:
+    """Explicitly accept one grounded candidate into canonical Evidence."""
+
+    settings = get_settings()
+    try:
+        with session_scope(settings) as session:
+            result = AssistedEvidenceExtractionService(session, settings).accept_candidate(candidate_id)
+            typer.echo(f"Candidate accepted: {result.candidate_id}")
+            typer.echo(f"Evidence: {result.evidence_id}")
+            typer.echo(f"Acceptance mode: {result.acceptance_mode.value}")
+            typer.echo(f"Status: {result.status.value}")
+    except (ValueError, EvidenceCandidateAcceptanceError, SQLAlchemyError) as exc:
+        typer.echo(f"Evidence candidate acceptance failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+@research_app.command("reject-evidence")
+def reject_assisted_evidence(
+    candidate_id: str = typer.Argument(..., help="Evidence candidate UUID."),
+    reason: str = typer.Option(..., help="Rejection reason."),
+) -> None:
+    """Reject one assisted evidence candidate and preserve audit history."""
+
+    settings = get_settings()
+    try:
+        with session_scope(settings) as session:
+            result = AssistedEvidenceExtractionService(session, settings).reject_candidate(
+                candidate_id,
+                reason=reason,
+            )
+            typer.echo(f"Candidate rejected: {result.candidate_id}")
+            typer.echo(f"Status: {result.status.value}")
+            typer.echo(f"Reason: {result.rejection_reason}")
+    except (ValueError, EvidenceCandidateRejectionError, SQLAlchemyError) as exc:
+        typer.echo(f"Evidence candidate rejection failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
 def _planning_provider(settings, provider: str | None):
     provider_name = provider or settings.research_planning_provider
     if provider_name == "fake":
@@ -472,6 +597,26 @@ def _planning_provider(settings, provider: str | None):
     if provider_name == "openai":
         return OpenAIPlanningProvider(settings)
     raise PlanningConfigurationError(f"unknown planning provider {provider_name!r}")
+
+
+def _assisted_extraction_provider(settings, provider: str | None):
+    provider_name = provider or settings.assisted_evidence_extraction_provider
+    if provider_name == "fake":
+        return FakeEvidenceExtractionProvider(model=settings.assisted_evidence_extraction_model)
+    if provider_name == "openai":
+        return OpenAIEvidenceExtractionProvider(settings)
+    raise ExtractionConfigurationError(f"unknown assisted extraction provider {provider_name!r}")
+
+
+def _echo_candidate(candidate) -> None:
+    typer.echo(f"- Candidate: {candidate.id}")
+    typer.echo(f"  Status: {candidate.status.value}")
+    typer.echo(f"  Source: {candidate.source_id}")
+    typer.echo(f"  Segment: {candidate.source_content_segment_id}")
+    typer.echo(f"  Type: {candidate.proposed_evidence_type.value}")
+    typer.echo(f"  Grounding: {candidate.grounding_validation.get('reason', 'unknown')}")
+    typer.echo(f"  Excerpt: {candidate.exact_excerpt}")
+    typer.echo(f"  Relevance: {candidate.relevance_explanation}")
 
 
 def _echo_plan_summary(session, settings, proposal_id: str | uuid.UUID) -> None:

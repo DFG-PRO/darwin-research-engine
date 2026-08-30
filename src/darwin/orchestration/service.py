@@ -22,6 +22,14 @@ from darwin.db.models import (
     ResearchSynthesisRecord,
     Source,
 )
+from darwin.extraction import (
+    AssistedEvidenceExtractionRequest,
+    AssistedEvidenceExtractionService,
+    AssistedExtractionResult,
+    EvidenceCandidateAcceptanceResult,
+    EvidenceCandidateRejectionResult,
+    EvidenceExtractionProvider,
+)
 from darwin.orchestration.errors import ResearchOrchestrationError
 from darwin.orchestration.schemas import (
     ClaimInput,
@@ -81,6 +89,41 @@ class ResearchOrchestrator:
         """Approve a proposal into the existing Phase 1.8 framing and plan models."""
 
         return ResearchPlanner(self.session, self.settings).approve_plan(proposal_id)
+
+    def propose_evidence(
+        self,
+        request: AssistedEvidenceExtractionRequest,
+        *,
+        provider: EvidenceExtractionProvider | None = None,
+    ) -> AssistedExtractionResult:
+        """Propose grounded Evidence candidates without creating canonical Evidence."""
+
+        return AssistedEvidenceExtractionService(self.session, self.settings, provider).propose_evidence(
+            request
+        )
+
+    def accept_evidence_candidate(
+        self,
+        candidate_id: uuid.UUID | str,
+    ) -> EvidenceCandidateAcceptanceResult:
+        """Explicitly accept one validated candidate into canonical Evidence."""
+
+        return AssistedEvidenceExtractionService(self.session, self.settings).accept_candidate(
+            candidate_id
+        )
+
+    def reject_evidence_candidate(
+        self,
+        candidate_id: uuid.UUID | str,
+        *,
+        reason: str,
+    ) -> EvidenceCandidateRejectionResult:
+        """Reject one candidate while preserving audit history."""
+
+        return AssistedEvidenceExtractionService(self.session, self.settings).reject_candidate(
+            candidate_id,
+            reason=reason,
+        )
 
     def run_manual(self, manual_input: ManualResearchInput) -> ResearchOrchestrationResult:
         self._validate_unique_keys("source", [source.source_key for source in manual_input.sources])
