@@ -53,6 +53,17 @@ from darwin.extraction import (
     OpenAIEvidenceExtractionProvider,
 )
 from darwin.logging import configure_logging
+from darwin.narrative_synthesis import (
+    FakeNarrativeSynthesisProvider,
+    NarrativeSynthesisConfigurationError,
+    NarrativeSynthesisProviderError,
+    NarrativeSynthesisPublicationError,
+    NarrativeSynthesisRejectionError,
+    NarrativeSynthesisRequest,
+    NarrativeSynthesisService,
+    NarrativeSynthesisValidationError,
+    OpenAINarrativeSynthesisProvider,
+)
 from darwin.orchestration import ManualResearchInput, ResearchOrchestrationError, ResearchOrchestrator
 from darwin.planning import (
     FakePlanningProvider,
@@ -264,6 +275,128 @@ def synthesize_research_run(
             typer.echo(result.model_dump_json(indent=2))
     except (ResearchServiceError, ClaimConstructionError, SQLAlchemyError) as exc:
         typer.echo(f"Synthesis command failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+@research_app.command("propose-synthesis")
+def propose_narrative_synthesis(
+    research_run_id: str = typer.Argument(..., help="Research run UUID or public ID."),
+    purpose: str = typer.Option("Communicate Darwin's canonical research state.", help="Report purpose."),
+    audience: str = typer.Option("research reviewer", help="Intended audience."),
+    report_format: str = typer.Option("markdown", help="Requested report format: markdown, brief, or detailed."),
+    focus_area: list[str] | None = typer.Option(None, help="Optional focus area. Repeatable."),
+    provider: str | None = typer.Option(None, help="Narrative synthesis provider override: fake or openai."),
+    max_length: int | None = typer.Option(None, min=100, help="Optional maximum rendered length."),
+) -> None:
+    """Propose a grounded narrative synthesis without publishing a report."""
+
+    settings = get_settings()
+    try:
+        request = NarrativeSynthesisRequest(
+            research_run_id=research_run_id,
+            report_purpose=purpose,
+            intended_audience=audience,
+            requested_report_format=report_format,
+            focus_areas=focus_area or [],
+            maximum_length=max_length,
+        )
+        selected_provider = _narrative_synthesis_provider(settings, provider)
+        with session_scope(settings) as session:
+            result = NarrativeSynthesisService(
+                session,
+                settings,
+                selected_provider,
+            ).propose_synthesis(request)
+            typer.echo(f"Synthesis request: {result.synthesis_request_id}")
+            typer.echo(f"Proposal: {result.proposal_id}")
+            typer.echo(f"Provider: {result.provider_id}")
+            typer.echo(f"Model: {result.provider_model or 'n/a'}")
+            typer.echo(f"Status: {result.status.value if result.status is not None else 'n/a'}")
+            if result.warnings:
+                typer.echo("Warnings: " + ", ".join(result.warnings))
+    except (
+        ValueError,
+        ValidationError,
+        NarrativeSynthesisConfigurationError,
+        NarrativeSynthesisProviderError,
+        NarrativeSynthesisValidationError,
+        SQLAlchemyError,
+    ) as exc:
+        typer.echo(f"Narrative synthesis proposal failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+@research_app.command("synthesis-show")
+def show_narrative_synthesis(
+    proposal_id: str = typer.Argument(..., help="Narrative synthesis proposal UUID."),
+) -> None:
+    """Show a persisted narrative synthesis proposal summary."""
+
+    settings = get_settings()
+    try:
+        with session_scope(settings) as session:
+            proposal = NarrativeSynthesisService(session, settings).get_proposal(proposal_id)
+            typer.echo(f"Proposal: {proposal.id}")
+            typer.echo(f"Status: {proposal.status.value}")
+            typer.echo(f"Provider: {proposal.provider_id}")
+            typer.echo(f"Model: {proposal.provider_model or 'n/a'}")
+            typer.echo(f"Completion: {proposal.proposal.completion_assessment.value}")
+            typer.echo(f"Key findings: {len(proposal.proposal.key_findings)}")
+            typer.echo(f"Contradictions: {len(proposal.proposal.contradictions)}")
+            typer.echo(f"Evidence gaps: {len(proposal.proposal.evidence_gaps)}")
+            typer.echo(f"Referenced Claims: {len(proposal.referenced_claim_ids)}")
+            typer.echo(f"Referenced Conclusions: {len(proposal.referenced_conclusion_ids)}")
+            if proposal.published_at is not None:
+                typer.echo(f"Published at: {proposal.published_at.isoformat()}")
+            if proposal.warnings:
+                typer.echo("Warnings: " + ", ".join(proposal.warnings))
+            if proposal.errors:
+                typer.echo("Errors: " + ", ".join(proposal.errors))
+    except (ValueError, NarrativeSynthesisValidationError, SQLAlchemyError) as exc:
+        typer.echo(f"Narrative synthesis lookup failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+@research_app.command("publish-synthesis")
+def publish_narrative_synthesis(
+    proposal_id: str = typer.Argument(..., help="Narrative synthesis proposal UUID."),
+) -> None:
+    """Explicitly publish a validated proposal as a Markdown report artifact."""
+
+    settings = get_settings()
+    try:
+        with session_scope(settings) as session:
+            result = NarrativeSynthesisService(session, settings).publish_synthesis(proposal_id)
+            typer.echo(f"Proposal published: {result.proposal_id}")
+            typer.echo(f"Report: {result.report_id}")
+            typer.echo(f"Status: {result.status.value}")
+            typer.echo(f"Artifact: {result.artifact_path}")
+            typer.echo(f"SHA-256: {result.artifact_sha256}")
+            typer.echo(f"Bytes: {result.artifact_size_bytes}")
+    except (ValueError, NarrativeSynthesisPublicationError, SQLAlchemyError) as exc:
+        typer.echo(f"Narrative synthesis publication failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+@research_app.command("reject-synthesis")
+def reject_narrative_synthesis(
+    proposal_id: str = typer.Argument(..., help="Narrative synthesis proposal UUID."),
+    reason: str = typer.Option(..., help="Rejection reason."),
+) -> None:
+    """Reject one narrative proposal while preserving history."""
+
+    settings = get_settings()
+    try:
+        with session_scope(settings) as session:
+            result = NarrativeSynthesisService(session, settings).reject_synthesis(
+                proposal_id,
+                reason=reason,
+            )
+            typer.echo(f"Proposal rejected: {result.proposal_id}")
+            typer.echo(f"Status: {result.status.value}")
+            typer.echo(f"Reason: {result.rejection_reason}")
+    except (ValueError, NarrativeSynthesisRejectionError, SQLAlchemyError) as exc:
+        typer.echo(f"Narrative synthesis rejection failed: {exc}")
         raise typer.Exit(code=1) from exc
 
 
@@ -742,6 +875,15 @@ def _assisted_claim_provider(settings, provider: str | None):
     if provider_name == "openai":
         return OpenAIClaimConstructionProvider(settings)
     raise ClaimConstructionConfigurationError(f"unknown assisted claim provider {provider_name!r}")
+
+
+def _narrative_synthesis_provider(settings, provider: str | None):
+    provider_name = provider or settings.narrative_synthesis_provider
+    if provider_name == "fake":
+        return FakeNarrativeSynthesisProvider(model=settings.narrative_synthesis_model)
+    if provider_name == "openai":
+        return OpenAINarrativeSynthesisProvider(settings)
+    raise NarrativeSynthesisConfigurationError(f"unknown narrative synthesis provider {provider_name!r}")
 
 
 def _echo_candidate(candidate) -> None:

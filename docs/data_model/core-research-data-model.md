@@ -366,6 +366,72 @@ Core fields:
 - `relation`: `SUPPORTS`, `CONTRADICTS`, or `CONTEXTUALIZES` for accepted candidate construction.
 - `created_at`: relationship creation timestamp.
 
+### NarrativeSynthesisRequest
+
+Phase 1.9D adds assisted narrative synthesis request persistence before report publication.
+
+Core fields:
+
+- `id`: UUID primary key.
+- `research_run_id`: required link to the research run.
+- report controls: purpose, audience, requested format, focus areas, section controls, optional length, tone/style metadata, and temporal framing.
+- provider/model/response fields.
+- narrative synthesis method, prompt, and schema version fields.
+- `status`: `COMPLETED` or `FAILED`.
+- proposal, warning, and error counts.
+- request payload, bounded context payload, validation result, provider metadata, usage metadata, cost metadata, and request metadata.
+- `created_at`, `completed_at`: timestamps.
+
+### NarrativeSynthesisProposal
+
+Represents a structured narrative proposal. It is not canonical knowledge and is not a published report.
+
+Core fields:
+
+- `id`: UUID primary key.
+- `synthesis_request_id`: required link to the narrative synthesis request.
+- `research_run_id`: required link to the research run.
+- provider/model/response fields.
+- narrative synthesis method, prompt, and schema version fields.
+- `status`: `VALIDATED`, `REJECTED_INVALID_GROUNDING`, `REJECTED`, or `PUBLISHED`.
+- `proposal_payload`: JSONB strict structured proposal.
+- referenced Claim, Conclusion, and Evidence ID arrays.
+- validation result, warnings, errors, provider metadata.
+- rejection and publication timestamps.
+- `created_at`: proposal creation timestamp.
+
+### NarrativeSynthesisFinding
+
+Represents one material narrative finding with canonical Darwin references.
+
+Core fields:
+
+- `id`: UUID primary key.
+- `proposal_id`: required link to the narrative proposal.
+- `research_run_id`: required link to the research run.
+- `finding_key` and `section`: stable proposal-local placement.
+- `text`: provider-supplied finding text.
+- `claim_ids`, `conclusion_ids`, `evidence_ids`: canonical reference arrays.
+- `validation_summary`: explicit validation-state summary.
+- `warnings`: finding-level warnings.
+- `created_at`: timestamp.
+
+### NarrativeResearchReport
+
+Represents the immutable/versioned report artifact produced by explicit publication.
+
+Core fields:
+
+- `id`: UUID primary key.
+- `proposal_id`: required unique link to the narrative proposal.
+- `research_run_id`: required link to the research run.
+- `report_version`: initial report version.
+- `artifact_path`: deterministic relative path under `DARWIN_ARTIFACT_ROOT`.
+- `artifact_sha256`: SHA-256 of the Markdown artifact.
+- `artifact_size_bytes`: artifact byte length.
+- `generated_at`: publication timestamp.
+- `metadata`: JSONB payload for report metadata.
+
 ## Provenance Model
 
 Provenance is relational, not hidden in JSON:
@@ -384,6 +450,10 @@ Provenance is relational, not hidden in JSON:
 - Claim candidate proposals link to one assisted claim construction request.
 - Claim candidate Evidence links preserve proposed Evidence-role semantics before canonical Claim acceptance.
 - Accepted Claim candidate proposals may link to one canonical Claim row.
+- Narrative synthesis requests link to one research run and persist the bounded canonical context supplied to the provider.
+- Narrative synthesis proposals link to one request and one research run.
+- Narrative synthesis findings link to one proposal and carry canonical Claim, Conclusion, and Evidence references.
+- Narrative research reports link to one proposal and one research run, and store artifact checksum/path metadata.
 
 This allows future validation, contradiction tracking, and historical retrieval work to build on explicit relationships.
 
@@ -394,6 +464,19 @@ Phase 1.9A planning proposal provenance is intentionally separate from Evidence,
 Phase 1.9B evidence candidate provenance is also separate from canonical Evidence until explicit acceptance. A candidate must be exactly grounded in stored segment text before it can be accepted.
 
 Phase 1.9C Claim candidate provenance is separate from canonical Claims until explicit acceptance. A candidate must be grounded in canonical Evidence before it can be accepted into a Claim and ClaimEvidence links.
+
+Phase 1.9D narrative synthesis provenance is downstream of canonical Darwin state:
+
+```text
+Source / Snapshot / Segment
+-> Evidence
+-> Claim
+-> Claim Validation
+-> Conclusion
+-> Narrative Synthesis
+```
+
+Narrative synthesis can organize canonical state, but it cannot retroactively modify Evidence, Claims, ClaimEvidence, validation state, Conclusions, ResearchPlan records, or Source provenance.
 
 ## Lifecycle and Status Concepts
 
@@ -410,6 +493,8 @@ Current enum sets are intentionally small:
 - Assisted claim construction requests: `COMPLETED`, `FAILED`.
 - Claim candidates: `VALIDATED`, `REJECTED_INVALID_PROVENANCE`, `REJECTED`, `ACCEPTED`.
 - Claim candidate acceptance modes: `MANUAL`, `AUTO_ACCEPTED`.
+- Narrative synthesis requests: `COMPLETED`, `FAILED`.
+- Narrative synthesis proposals: `VALIDATED`, `REJECTED_INVALID_GROUNDING`, `REJECTED`, `PUBLISHED`.
 
 These states provide foundation-level lifecycle clarity without implementing research execution behavior.
 
@@ -440,6 +525,17 @@ JSONB is used only for flexible metadata and context payloads:
 - `claim_candidate_proposals.assumptions`
 - `claim_candidate_proposals.validation_result`
 - `claim_candidate_proposals.provider_metadata`
+- `narrative_synthesis_requests.request_payload`
+- `narrative_synthesis_requests.context_payload`
+- `narrative_synthesis_requests.validation_result`
+- `narrative_synthesis_proposals.proposal_payload`
+- `narrative_synthesis_proposals.referenced_claim_ids`
+- `narrative_synthesis_proposals.referenced_conclusion_ids`
+- `narrative_synthesis_proposals.referenced_evidence_ids`
+- `narrative_synthesis_proposals.validation_result`
+- `narrative_synthesis_findings.claim_ids`
+- `narrative_synthesis_findings.conclusion_ids`
+- `narrative_synthesis_findings.evidence_ids`
 - `sources.metadata`
 - `evidence.metadata`
 

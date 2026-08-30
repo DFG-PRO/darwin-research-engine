@@ -274,6 +274,22 @@ class ClaimCandidateAcceptanceMode(str, enum.Enum):
     AUTO_ACCEPTED = "AUTO_ACCEPTED"
 
 
+class NarrativeSynthesisRequestStatus(str, enum.Enum):
+    """Execution state for assisted narrative synthesis requests."""
+
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class NarrativeSynthesisProposalStatus(str, enum.Enum):
+    """Lifecycle state for assisted narrative synthesis proposals."""
+
+    VALIDATED = "VALIDATED"
+    REJECTED_INVALID_GROUNDING = "REJECTED_INVALID_GROUNDING"
+    REJECTED = "REJECTED"
+    PUBLISHED = "PUBLISHED"
+
+
 class ConclusionClaimRelation(str, enum.Enum):
     """Explicit relationship between a claim and a conclusion."""
 
@@ -340,6 +356,15 @@ class ResearchRun(Base):
         back_populates="research_run",
     )
     assisted_claim_construction_requests: Mapped[list[AssistedClaimConstructionRequest]] = relationship(
+        back_populates="research_run",
+    )
+    narrative_synthesis_requests: Mapped[list[NarrativeSynthesisRequest]] = relationship(
+        back_populates="research_run",
+    )
+    narrative_synthesis_proposals: Mapped[list[NarrativeSynthesisProposal]] = relationship(
+        back_populates="research_run",
+    )
+    narrative_research_reports: Mapped[list[NarrativeResearchReport]] = relationship(
         back_populates="research_run",
     )
 
@@ -1657,6 +1682,214 @@ class ClaimCandidateEvidence(Base):
 
     candidate: Mapped[ClaimCandidateProposal] = relationship(back_populates="evidence_links")
     evidence: Mapped[Evidence] = relationship(back_populates="claim_candidate_links")
+
+
+class NarrativeSynthesisRequest(Base):
+    """Audit record for one assisted narrative synthesis attempt."""
+
+    __tablename__ = "narrative_synthesis_requests"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    research_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    report_purpose: Mapped[str] = mapped_column(Text, nullable=False)
+    intended_audience: Mapped[str] = mapped_column(Text, nullable=False)
+    requested_report_format: Mapped[str] = mapped_column(String(64), nullable=False)
+    focus_areas: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    maximum_length: Mapped[int | None] = mapped_column(Integer)
+    include_sections: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    exclude_sections: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    tone_style: Mapped[dict[str, Any]] = mapped_column(jsonb_metadata_type, nullable=False, default=dict)
+    temporal_framing: Mapped[str | None] = mapped_column(Text)
+    provider_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    provider_model: Mapped[str | None] = mapped_column(String(256))
+    provider_response_id: Mapped[str | None] = mapped_column(String(256))
+    synthesis_method_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    prompt_version: Mapped[str | None] = mapped_column(String(64))
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[NarrativeSynthesisRequestStatus] = mapped_column(
+        Enum(NarrativeSynthesisRequestStatus, name="narrative_synthesis_request_status"),
+        nullable=False,
+    )
+    proposal_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    warning_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    warnings: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    errors: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    request_payload: Mapped[dict[str, Any]] = mapped_column(jsonb_metadata_type, nullable=False)
+    context_payload: Mapped[dict[str, Any]] = mapped_column(jsonb_metadata_type, nullable=False, default=dict)
+    validation_result: Mapped[dict[str, Any]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    provider_metadata: Mapped[dict[str, Any]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    usage_metadata: Mapped[dict[str, Any]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    cost_metadata: Mapped[dict[str, Any]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    request_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata",
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    research_run: Mapped[ResearchRun] = relationship(back_populates="narrative_synthesis_requests")
+    proposals: Mapped[list[NarrativeSynthesisProposal]] = relationship(back_populates="request")
+
+
+class NarrativeSynthesisProposal(Base):
+    """Validated or rejected structured narrative proposal from a bounded context."""
+
+    __tablename__ = "narrative_synthesis_proposals"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    synthesis_request_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("narrative_synthesis_requests.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    research_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    provider_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    provider_model: Mapped[str | None] = mapped_column(String(256))
+    provider_response_id: Mapped[str | None] = mapped_column(String(256))
+    synthesis_method_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    prompt_version: Mapped[str | None] = mapped_column(String(64))
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[NarrativeSynthesisProposalStatus] = mapped_column(
+        Enum(NarrativeSynthesisProposalStatus, name="narrative_synthesis_proposal_status"),
+        nullable=False,
+    )
+    proposal_payload: Mapped[dict[str, Any]] = mapped_column(jsonb_metadata_type, nullable=False)
+    referenced_claim_ids: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    referenced_conclusion_ids: Mapped[list[str]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=list,
+    )
+    referenced_evidence_ids: Mapped[list[str]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=list,
+    )
+    validation_result: Mapped[dict[str, Any]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    warning_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    warnings: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    errors: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    rejected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    rejection_reason: Mapped[str | None] = mapped_column(Text)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    provider_metadata: Mapped[dict[str, Any]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+
+    request: Mapped[NarrativeSynthesisRequest] = relationship(back_populates="proposals")
+    research_run: Mapped[ResearchRun] = relationship(back_populates="narrative_synthesis_proposals")
+    findings: Mapped[list[NarrativeSynthesisFinding]] = relationship(back_populates="proposal")
+    report: Mapped[NarrativeResearchReport | None] = relationship(back_populates="proposal")
+
+
+class NarrativeSynthesisFinding(Base):
+    """Material narrative finding with canonical Darwin references."""
+
+    __tablename__ = "narrative_synthesis_findings"
+    __table_args__ = (
+        UniqueConstraint("proposal_id", "section", "finding_key", name="uq_narrative_finding_key"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    proposal_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("narrative_synthesis_proposals.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    research_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    finding_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    section: Mapped[str] = mapped_column(String(64), nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    claim_ids: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    conclusion_ids: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    evidence_ids: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    validation_summary: Mapped[str] = mapped_column(Text, nullable=False)
+    warnings: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+
+    proposal: Mapped[NarrativeSynthesisProposal] = relationship(back_populates="findings")
+    research_run: Mapped[ResearchRun] = relationship()
+
+
+class NarrativeResearchReport(Base):
+    """Immutable/versioned user-readable research report artifact."""
+
+    __tablename__ = "narrative_research_reports"
+    __table_args__ = (UniqueConstraint("proposal_id", name="uq_narrative_report_proposal"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    proposal_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("narrative_synthesis_proposals.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    research_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    report_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    artifact_path: Mapped[str] = mapped_column(Text, nullable=False)
+    artifact_sha256: Mapped[str] = mapped_column(String(128), nullable=False)
+    artifact_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+    report_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata",
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+
+    proposal: Mapped[NarrativeSynthesisProposal] = relationship(back_populates="report")
+    research_run: Mapped[ResearchRun] = relationship(back_populates="narrative_research_reports")
 
 
 class ConclusionClaim(Base):

@@ -38,6 +38,14 @@ from darwin.extraction import (
     EvidenceCandidateRejectionResult,
     EvidenceExtractionProvider,
 )
+from darwin.narrative_synthesis import (
+    NarrativePublicationResult,
+    NarrativeRejectionResult,
+    NarrativeSynthesisProvider,
+    NarrativeSynthesisRequest,
+    NarrativeSynthesisResult,
+    NarrativeSynthesisService,
+)
 from darwin.orchestration.errors import ResearchOrchestrationError
 from darwin.orchestration.schemas import (
     ClaimInput,
@@ -165,6 +173,39 @@ class ResearchOrchestrator:
 
         return AssistedClaimConstructionService(self.session, self.settings).reject_claim_candidate(
             candidate_id,
+            reason=reason,
+        )
+
+    def propose_synthesis(
+        self,
+        request: NarrativeSynthesisRequest,
+        *,
+        provider: NarrativeSynthesisProvider | None = None,
+    ) -> NarrativeSynthesisResult:
+        """Propose a grounded narrative synthesis without publication."""
+
+        return NarrativeSynthesisService(self.session, self.settings, provider).propose_synthesis(
+            request
+        )
+
+    def publish_synthesis(
+        self,
+        proposal_id: uuid.UUID | str,
+    ) -> NarrativePublicationResult:
+        """Explicitly publish one validated narrative proposal."""
+
+        return NarrativeSynthesisService(self.session, self.settings).publish_synthesis(proposal_id)
+
+    def reject_synthesis(
+        self,
+        proposal_id: uuid.UUID | str,
+        *,
+        reason: str,
+    ) -> NarrativeRejectionResult:
+        """Reject one narrative synthesis proposal while preserving history."""
+
+        return NarrativeSynthesisService(self.session, self.settings).reject_synthesis(
+            proposal_id,
             reason=reason,
         )
 

@@ -34,6 +34,12 @@ from darwin.db.models import (
     EvidenceCandidateStatus,
     EvidenceType,
     HumanValidationType,
+    NarrativeResearchReport,
+    NarrativeSynthesisFinding,
+    NarrativeSynthesisProposal,
+    NarrativeSynthesisProposalStatus,
+    NarrativeSynthesisRequest,
+    NarrativeSynthesisRequestStatus,
     ResearchCompletionAssessment,
     ResearchFraming,
     ResearchPlanItem,
@@ -68,6 +74,10 @@ def test_model_imports() -> None:
     assert AssistedClaimConstructionRequest.__tablename__ == "assisted_claim_construction_requests"
     assert ClaimCandidateProposal.__tablename__ == "claim_candidate_proposals"
     assert ClaimCandidateEvidence.__tablename__ == "claim_candidate_evidence"
+    assert NarrativeSynthesisRequest.__tablename__ == "narrative_synthesis_requests"
+    assert NarrativeSynthesisProposal.__tablename__ == "narrative_synthesis_proposals"
+    assert NarrativeSynthesisFinding.__tablename__ == "narrative_synthesis_findings"
+    assert NarrativeResearchReport.__tablename__ == "narrative_research_reports"
 
 
 def test_metadata_contains_expected_tables() -> None:
@@ -91,6 +101,10 @@ def test_metadata_contains_expected_tables() -> None:
         "assisted_claim_construction_requests",
         "claim_candidate_proposals",
         "claim_candidate_evidence",
+        "narrative_synthesis_requests",
+        "narrative_synthesis_proposals",
+        "narrative_synthesis_findings",
+        "narrative_research_reports",
     }.issubset(Base.metadata.tables)
 
 
@@ -252,6 +266,79 @@ def test_required_fields_are_not_nullable() -> None:
             "relation",
             "created_at",
         },
+        NarrativeSynthesisRequest: {
+            "id",
+            "research_run_id",
+            "report_purpose",
+            "intended_audience",
+            "requested_report_format",
+            "focus_areas",
+            "include_sections",
+            "exclude_sections",
+            "tone_style",
+            "provider_id",
+            "synthesis_method_version",
+            "schema_version",
+            "status",
+            "proposal_count",
+            "warning_count",
+            "error_count",
+            "warnings",
+            "errors",
+            "request_payload",
+            "context_payload",
+            "validation_result",
+            "provider_metadata",
+            "usage_metadata",
+            "cost_metadata",
+            "metadata",
+            "created_at",
+        },
+        NarrativeSynthesisProposal: {
+            "id",
+            "synthesis_request_id",
+            "research_run_id",
+            "provider_id",
+            "synthesis_method_version",
+            "schema_version",
+            "status",
+            "proposal_payload",
+            "referenced_claim_ids",
+            "referenced_conclusion_ids",
+            "referenced_evidence_ids",
+            "validation_result",
+            "warning_count",
+            "error_count",
+            "warnings",
+            "errors",
+            "provider_metadata",
+            "created_at",
+        },
+        NarrativeSynthesisFinding: {
+            "id",
+            "proposal_id",
+            "research_run_id",
+            "finding_key",
+            "section",
+            "text",
+            "claim_ids",
+            "conclusion_ids",
+            "evidence_ids",
+            "validation_summary",
+            "warnings",
+            "created_at",
+        },
+        NarrativeResearchReport: {
+            "id",
+            "proposal_id",
+            "research_run_id",
+            "report_version",
+            "artifact_path",
+            "artifact_sha256",
+            "artifact_size_bytes",
+            "generated_at",
+            "metadata",
+        },
     }
 
     for model, column_names in expected_required_columns.items():
@@ -284,6 +371,8 @@ def test_core_enums_are_small_and_explicit() -> None:
     assert AssistedClaimConstructionRequestStatus.COMPLETED.value == "COMPLETED"
     assert ClaimCandidateStatus.REJECTED_INVALID_PROVENANCE.value == "REJECTED_INVALID_PROVENANCE"
     assert ClaimCandidateAcceptanceMode.MANUAL.value == "MANUAL"
+    assert NarrativeSynthesisRequestStatus.COMPLETED.value == "COMPLETED"
+    assert NarrativeSynthesisProposalStatus.PUBLISHED.value == "PUBLISHED"
 
 
 def test_relationships_preserve_research_provenance() -> None:

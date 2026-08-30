@@ -276,6 +276,71 @@ class Settings(BaseSettings):
         le=25,
         description="Maximum assumption entries per assisted Claim candidate.",
     )
+    narrative_synthesis_provider: Literal["fake", "openai"] = Field(
+        default="fake",
+        description="Narrative synthesis provider identifier.",
+    )
+    narrative_synthesis_model: str = Field(
+        default="fake-narrative-synthesis-v1",
+        description="Provider model identifier for narrative synthesis proposals.",
+    )
+    narrative_synthesis_method_version: str = Field(
+        default="narrative-synthesis-1.9d",
+        description="Version identifier for assisted narrative synthesis.",
+    )
+    narrative_synthesis_prompt_version: str = Field(
+        default="narrative-synthesis-prompt-1.9d",
+        description="Version identifier for narrative synthesis prompt semantics.",
+    )
+    narrative_synthesis_schema_version: str = Field(
+        default="narrative-synthesis-proposal-schema-1.9d",
+        description="Version identifier for narrative synthesis structured output.",
+    )
+    narrative_synthesis_timeout_seconds: float = Field(
+        default=20.0,
+        ge=0.1,
+        description="HTTP timeout for configured live narrative synthesis providers.",
+    )
+    narrative_synthesis_max_claims: int = Field(
+        default=25,
+        ge=1,
+        le=200,
+        description="Maximum canonical Claims included in one narrative synthesis context.",
+    )
+    narrative_synthesis_max_evidence_items: int = Field(
+        default=60,
+        ge=1,
+        le=500,
+        description="Maximum canonical Evidence items included in one narrative synthesis context.",
+    )
+    narrative_synthesis_max_evidence_chars: int = Field(
+        default=20000,
+        ge=1,
+        description="Maximum total Evidence characters included in one narrative synthesis context.",
+    )
+    narrative_synthesis_max_findings: int = Field(
+        default=20,
+        ge=1,
+        le=100,
+        description="Maximum findings per major proposal section.",
+    )
+    narrative_synthesis_max_report_chars: int = Field(
+        default=50000,
+        ge=1000,
+        description="Maximum characters in a rendered narrative report.",
+    )
+    narrative_synthesis_max_assumptions: int = Field(
+        default=10,
+        ge=0,
+        le=100,
+        description="Maximum assumptions included in one narrative proposal.",
+    )
+    narrative_synthesis_max_limitations: int = Field(
+        default=10,
+        ge=0,
+        le=100,
+        description="Maximum limitations included in one narrative proposal.",
+    )
 
 
 @lru_cache
