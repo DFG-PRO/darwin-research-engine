@@ -251,6 +251,29 @@ class ClaimConstructionMethod(str, enum.Enum):
     MANUAL_EXPLICIT = "MANUAL_EXPLICIT"
 
 
+class AssistedClaimConstructionRequestStatus(str, enum.Enum):
+    """Execution state for assisted claim candidate construction."""
+
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class ClaimCandidateStatus(str, enum.Enum):
+    """Lifecycle state for assisted claim candidate proposals."""
+
+    VALIDATED = "VALIDATED"
+    REJECTED_INVALID_PROVENANCE = "REJECTED_INVALID_PROVENANCE"
+    REJECTED = "REJECTED"
+    ACCEPTED = "ACCEPTED"
+
+
+class ClaimCandidateAcceptanceMode(str, enum.Enum):
+    """Auditable mode used to accept a claim candidate."""
+
+    MANUAL = "MANUAL"
+    AUTO_ACCEPTED = "AUTO_ACCEPTED"
+
+
 class ConclusionClaimRelation(str, enum.Enum):
     """Explicit relationship between a claim and a conclusion."""
 
@@ -314,6 +337,9 @@ class ResearchRun(Base):
         back_populates="research_run",
     )
     assisted_extraction_requests: Mapped[list[AssistedEvidenceExtractionRequest]] = relationship(
+        back_populates="research_run",
+    )
+    assisted_claim_construction_requests: Mapped[list[AssistedClaimConstructionRequest]] = relationship(
         back_populates="research_run",
     )
 
@@ -417,6 +443,9 @@ class Evidence(Base):
     accepted_candidate: Mapped[EvidenceCandidateProposal | None] = relationship(
         back_populates="evidence",
     )
+    claim_candidate_links: Mapped[list[ClaimCandidateEvidence]] = relationship(
+        back_populates="evidence",
+    )
 
 
 class Claim(Base):
@@ -471,6 +500,7 @@ class Claim(Base):
         back_populates="claim",
     )
     conclusion_links: Mapped[list[ConclusionClaim]] = relationship(back_populates="claim")
+    accepted_candidate: Mapped[ClaimCandidateProposal | None] = relationship(back_populates="claim")
 
 
 class ClaimEvidence(Base):
@@ -692,6 +722,9 @@ class ResearchPlanItem(Base):
 
     research_run: Mapped[ResearchRun] = relationship(back_populates="plan_items")
     assisted_extraction_requests: Mapped[list[AssistedEvidenceExtractionRequest]] = relationship(
+        back_populates="research_plan_item",
+    )
+    assisted_claim_construction_requests: Mapped[list[AssistedClaimConstructionRequest]] = relationship(
         back_populates="research_plan_item",
     )
 
@@ -1441,6 +1474,189 @@ class ClaimConstructionEvidence(Base):
         back_populates="evidence_selections",
     )
     evidence: Mapped[Evidence] = relationship(back_populates="construction_evidence_links")
+
+
+class AssistedClaimConstructionRequest(Base):
+    """Audit record for one assisted claim candidate construction attempt."""
+
+    __tablename__ = "assisted_claim_construction_requests"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    research_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    research_plan_item_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_plan_items.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    evidence_ids: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    research_objective: Mapped[str] = mapped_column(Text, nullable=False)
+    construction_instruction: Mapped[str] = mapped_column(Text, nullable=False)
+    expected_claim_type: Mapped[ClaimType | None] = mapped_column(
+        Enum(ClaimType, name="claim_type"),
+    )
+    temporal_scope: Mapped[str | None] = mapped_column(Text)
+    max_candidate_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    provider_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    provider_model: Mapped[str | None] = mapped_column(String(256))
+    provider_response_id: Mapped[str | None] = mapped_column(String(256))
+    construction_method_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    prompt_version: Mapped[str | None] = mapped_column(String(64))
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[AssistedClaimConstructionRequestStatus] = mapped_column(
+        Enum(
+            AssistedClaimConstructionRequestStatus,
+            name="assisted_claim_construction_request_status",
+        ),
+        nullable=False,
+    )
+    candidate_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    accepted_candidate_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    warning_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    warnings: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    errors: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    request_payload: Mapped[dict[str, Any]] = mapped_column(jsonb_metadata_type, nullable=False)
+    validation_result: Mapped[dict[str, Any]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    provider_metadata: Mapped[dict[str, Any]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    usage_metadata: Mapped[dict[str, Any]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    cost_metadata: Mapped[dict[str, Any]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    request_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata",
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    research_run: Mapped[ResearchRun] = relationship(
+        back_populates="assisted_claim_construction_requests",
+    )
+    research_plan_item: Mapped[ResearchPlanItem] = relationship(
+        back_populates="assisted_claim_construction_requests",
+    )
+    candidates: Mapped[list[ClaimCandidateProposal]] = relationship(back_populates="request")
+
+
+class ClaimCandidateProposal(Base):
+    """Provider-proposed Claim candidate grounded in canonical Evidence."""
+
+    __tablename__ = "claim_candidate_proposals"
+    __table_args__ = (
+        UniqueConstraint("construction_request_id", "candidate_key", name="uq_claim_candidate_key"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    construction_request_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("assisted_claim_construction_requests.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    research_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    research_plan_item_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_plan_items.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    claim_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("claims.id", ondelete="RESTRICT"),
+    )
+    candidate_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    proposed_claim_text: Mapped[str] = mapped_column(Text, nullable=False)
+    proposed_claim_type: Mapped[ClaimType] = mapped_column(
+        Enum(ClaimType, name="claim_type"),
+        nullable=False,
+    )
+    temporal_scope: Mapped[str | None] = mapped_column(Text)
+    qualifiers: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    assumptions: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    construction_rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[ClaimCandidateStatus] = mapped_column(
+        Enum(ClaimCandidateStatus, name="claim_candidate_status"),
+        nullable=False,
+    )
+    acceptance_mode: Mapped[ClaimCandidateAcceptanceMode | None] = mapped_column(
+        Enum(ClaimCandidateAcceptanceMode, name="claim_candidate_acceptance_mode"),
+    )
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    rejected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    rejection_reason: Mapped[str | None] = mapped_column(Text)
+    provider_warnings: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    validation_result: Mapped[dict[str, Any]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    provider_metadata: Mapped[dict[str, Any]] = mapped_column(
+        jsonb_metadata_type,
+        nullable=False,
+        default=dict,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+
+    request: Mapped[AssistedClaimConstructionRequest] = relationship(back_populates="candidates")
+    research_run: Mapped[ResearchRun] = relationship()
+    research_plan_item: Mapped[ResearchPlanItem] = relationship()
+    claim: Mapped[Claim | None] = relationship(back_populates="accepted_candidate")
+    evidence_links: Mapped[list[ClaimCandidateEvidence]] = relationship(back_populates="candidate")
+
+
+class ClaimCandidateEvidence(Base):
+    """Evidence selected by a claim candidate with Darwin relationship semantics."""
+
+    __tablename__ = "claim_candidate_evidence"
+    __table_args__ = (
+        UniqueConstraint("claim_candidate_id", "evidence_id", name="uq_claim_candidate_evidence"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    claim_candidate_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("claim_candidate_proposals.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    evidence_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("evidence.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    relation: Mapped[ClaimEvidenceRelation] = mapped_column(
+        Enum(ClaimEvidenceRelation, name="claim_evidence_relation"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+
+    candidate: Mapped[ClaimCandidateProposal] = relationship(back_populates="evidence_links")
+    evidence: Mapped[Evidence] = relationship(back_populates="claim_candidate_links")
 
 
 class ConclusionClaim(Base):

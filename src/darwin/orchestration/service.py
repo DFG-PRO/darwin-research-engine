@@ -8,6 +8,14 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from darwin.config import Settings
+from darwin.claim_assistance import (
+    AssistedClaimConstructionRequest,
+    AssistedClaimConstructionResult,
+    AssistedClaimConstructionService,
+    ClaimCandidateAcceptanceResult,
+    ClaimCandidateRejectionResult,
+    ClaimConstructionProvider,
+)
 from darwin.construction import ClaimConstructionRequest, ClaimConstructionService, ClaimEvidenceSelection
 from darwin.db.models import (
     Claim,
@@ -121,6 +129,41 @@ class ResearchOrchestrator:
         """Reject one candidate while preserving audit history."""
 
         return AssistedEvidenceExtractionService(self.session, self.settings).reject_candidate(
+            candidate_id,
+            reason=reason,
+        )
+
+    def propose_claims(
+        self,
+        request: AssistedClaimConstructionRequest,
+        *,
+        provider: ClaimConstructionProvider | None = None,
+    ) -> AssistedClaimConstructionResult:
+        """Propose Evidence-grounded Claim candidates without creating canonical Claims."""
+
+        return AssistedClaimConstructionService(self.session, self.settings, provider).propose_claims(
+            request
+        )
+
+    def accept_claim_candidate(
+        self,
+        candidate_id: uuid.UUID | str,
+    ) -> ClaimCandidateAcceptanceResult:
+        """Explicitly accept one validated Claim candidate into canonical Claim records."""
+
+        return AssistedClaimConstructionService(self.session, self.settings).accept_claim_candidate(
+            candidate_id
+        )
+
+    def reject_claim_candidate(
+        self,
+        candidate_id: uuid.UUID | str,
+        *,
+        reason: str,
+    ) -> ClaimCandidateRejectionResult:
+        """Reject one Claim candidate while preserving audit history."""
+
+        return AssistedClaimConstructionService(self.session, self.settings).reject_claim_candidate(
             candidate_id,
             reason=reason,
         )

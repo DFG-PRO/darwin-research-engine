@@ -307,6 +307,65 @@ Core fields:
 
 Canonical Evidence remains stored only in `evidence`.
 
+### AssistedClaimConstructionRequest
+
+Phase 1.9C adds assisted claim construction request persistence before canonical Claim acceptance.
+
+Core fields:
+
+- `id`: UUID primary key.
+- `research_run_id`: required link to the research run.
+- `research_plan_item_id`: required link to the plan item that caused construction.
+- `evidence_ids`: JSONB list of canonical Evidence ids submitted to the provider boundary.
+- `research_objective`: objective supplied to the construction boundary.
+- `construction_instruction`: caller instruction for candidate construction.
+- `expected_claim_type`: optional expected canonical Claim type.
+- `temporal_scope`: optional temporal scope for proposed Claims.
+- `max_candidate_count`: request-level candidate bound.
+- provider/model/response fields.
+- construction method, prompt, and schema version fields.
+- `status`: `COMPLETED` or `FAILED`.
+- candidate, accepted-candidate, warning, and error counts.
+- warnings, errors, request payload, validation result, provider metadata, usage metadata, cost metadata, and request metadata.
+- `created_at`, `completed_at`: timestamps.
+
+### ClaimCandidateProposal
+
+Represents a provider-proposed Claim candidate. It is not a canonical Claim.
+
+Core fields:
+
+- `id`: UUID primary key.
+- `construction_request_id`: required link to the assisted claim construction request.
+- `research_run_id`, `research_plan_item_id`: explicit provenance.
+- `claim_id`: nullable link populated only after explicit acceptance.
+- `candidate_key`: key unique within the construction request.
+- `proposed_claim_text`: proposed atomic Claim statement.
+- `proposed_claim_type`: proposed Claim type.
+- `temporal_scope`: optional temporal scope.
+- `qualifiers`: JSONB list of qualifiers.
+- `assumptions`: JSONB list of assumptions.
+- `construction_rationale`: provider explanation.
+- `status`: `VALIDATED`, `REJECTED_INVALID_PROVENANCE`, `REJECTED`, or `ACCEPTED`.
+- `acceptance_mode`: nullable `MANUAL` or `AUTO_ACCEPTED`.
+- acceptance/rejection timestamps and rejection reason.
+- provider warnings, validation result, and provider metadata.
+- `created_at`: candidate creation timestamp.
+
+Canonical Claims remain stored only in `claims`.
+
+### ClaimCandidateEvidence
+
+Represents Evidence selected by a Claim candidate with Darwin relationship semantics.
+
+Core fields:
+
+- `id`: UUID primary key.
+- `claim_candidate_id`: required link to the Claim candidate.
+- `evidence_id`: required link to canonical Evidence.
+- `relation`: `SUPPORTS`, `CONTRADICTS`, or `CONTEXTUALIZES` for accepted candidate construction.
+- `created_at`: relationship creation timestamp.
+
 ## Provenance Model
 
 Provenance is relational, not hidden in JSON:
@@ -321,6 +380,10 @@ Provenance is relational, not hidden in JSON:
 - Assisted extraction requests link to one research run, plan item, source, and snapshot.
 - Evidence candidate proposals link to one assisted extraction request and one source content segment.
 - Accepted evidence candidate proposals may link to one canonical Evidence row.
+- Assisted claim construction requests link to one research run, plan item, and a bounded set of canonical Evidence ids.
+- Claim candidate proposals link to one assisted claim construction request.
+- Claim candidate Evidence links preserve proposed Evidence-role semantics before canonical Claim acceptance.
+- Accepted Claim candidate proposals may link to one canonical Claim row.
 
 This allows future validation, contradiction tracking, and historical retrieval work to build on explicit relationships.
 
@@ -329,6 +392,8 @@ Phase 1.8C retrieval returns sources used through evidence, evidence, claims, cl
 Phase 1.9A planning proposal provenance is intentionally separate from Evidence, Claims, and Conclusions. A proposal may suggest what evidence to seek, but it does not create or validate evidence.
 
 Phase 1.9B evidence candidate provenance is also separate from canonical Evidence until explicit acceptance. A candidate must be exactly grounded in stored segment text before it can be accepted.
+
+Phase 1.9C Claim candidate provenance is separate from canonical Claims until explicit acceptance. A candidate must be grounded in canonical Evidence before it can be accepted into a Claim and ClaimEvidence links.
 
 ## Lifecycle and Status Concepts
 
@@ -342,6 +407,9 @@ Current enum sets are intentionally small:
 - Assisted extraction requests: `COMPLETED`, `FAILED`.
 - Evidence candidates: `VALIDATED`, `REJECTED_INVALID_GROUNDING`, `REJECTED`, `ACCEPTED`.
 - Evidence candidate acceptance modes: `MANUAL`, `AUTO_ACCEPTED`.
+- Assisted claim construction requests: `COMPLETED`, `FAILED`.
+- Claim candidates: `VALIDATED`, `REJECTED_INVALID_PROVENANCE`, `REJECTED`, `ACCEPTED`.
+- Claim candidate acceptance modes: `MANUAL`, `AUTO_ACCEPTED`.
 
 These states provide foundation-level lifecycle clarity without implementing research execution behavior.
 
@@ -365,6 +433,13 @@ JSONB is used only for flexible metadata and context payloads:
 - `assisted_evidence_extraction_requests.validation_result`
 - `evidence_candidate_proposals.structural_validation`
 - `evidence_candidate_proposals.grounding_validation`
+- `assisted_claim_construction_requests.evidence_ids`
+- `assisted_claim_construction_requests.request_payload`
+- `assisted_claim_construction_requests.validation_result`
+- `claim_candidate_proposals.qualifiers`
+- `claim_candidate_proposals.assumptions`
+- `claim_candidate_proposals.validation_result`
+- `claim_candidate_proposals.provider_metadata`
 - `sources.metadata`
 - `evidence.metadata`
 

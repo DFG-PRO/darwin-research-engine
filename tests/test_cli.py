@@ -7,7 +7,11 @@ from darwin.config import get_settings
 from darwin.db import Base
 from darwin.db.models import (
     Claim,
+    ClaimCandidateProposal,
+    ClaimEvidence,
+    ClaimValidationEvaluation,
     Evidence,
+    EvidenceType,
     EvidenceCandidateProposal,
     ResearchPlanItem,
     ResearchPlanItemStatus,
@@ -55,6 +59,10 @@ def test_research_cli_help() -> None:
     assert "evidence-candidates" in result.stdout
     assert "accept-evidence" in result.stdout
     assert "reject-evidence" in result.stdout
+    assert "propose-claims" in result.stdout
+    assert "claim-candidates" in result.stdout
+    assert "accept-claim" in result.stdout
+    assert "reject-claim" in result.stdout
     assert "acquire" in result.stdout
     assert "fetch-source" in result.stdout
     assert "source-content" in result.stdout
@@ -120,6 +128,10 @@ def test_source_content_cli_help() -> None:
     assert runner.invoke(app, ["research", "evidence-candidates", "--help"]).exit_code == 0
     assert runner.invoke(app, ["research", "accept-evidence", "--help"]).exit_code == 0
     assert runner.invoke(app, ["research", "reject-evidence", "--help"]).exit_code == 0
+    assert runner.invoke(app, ["research", "propose-claims", "--help"]).exit_code == 0
+    assert runner.invoke(app, ["research", "claim-candidates", "--help"]).exit_code == 0
+    assert runner.invoke(app, ["research", "accept-claim", "--help"]).exit_code == 0
+    assert runner.invoke(app, ["research", "reject-claim", "--help"]).exit_code == 0
 
 
 def test_research_planner_cli_plan_show_and_approve(tmp_path, monkeypatch) -> None:
@@ -334,3 +346,92 @@ def test_assisted_extraction_cli_propose_list_accept(tmp_path, monkeypatch) -> N
     with session_factory() as session:
         assert session.query(Evidence).count() == 1
         assert session.query(Claim).count() == 0
+
+
+def test_assisted_claim_cli_propose_list_accept(tmp_path, monkeypatch) -> None:
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'darwin-assisted-claims.sqlite'}"
+    engine = create_engine(database_url)
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine, expire_on_commit=False)
+    with session_factory() as session:
+        service = ResearchService(session)
+        research_run = service.create_research_run(
+            title="CLI assisted claim run",
+            research_method_version="0.1.0",
+            darwin_version="0.1.0",
+        )
+        plan_item = ResearchPlanItem(
+            research_run=research_run,
+            item_key="cli-claim-plan",
+            requirement="Construct one claim.",
+            category="claims",
+            priority=ResearchPlanPriority.HIGH,
+            is_required=True,
+            status=ResearchPlanItemStatus.PENDING,
+            expected_source_type=SourceType.WEB_PAGE,
+        )
+        session.add(plan_item)
+        source = service.register_source(
+            source_type=SourceType.WEB_PAGE,
+            canonical_locator="https://example.com/assisted-claims",
+        )
+        evidence = service.register_evidence(
+            research_run_id=research_run.id,
+            source_id=source.id,
+            evidence_type=EvidenceType.EXCERPT,
+            statement="Assisted claim construction keeps candidates separate from Claims.",
+            source_locator="https://example.com/assisted-claims#e1",
+            metadata={"research_plan_item_id": str(plan_item.id)},
+        )
+        session.commit()
+        ids = {
+            "run": str(research_run.id),
+            "plan": str(plan_item.id),
+            "evidence": str(evidence.id),
+        }
+
+    monkeypatch.setenv("DARWIN_DATABASE_URL", database_url)
+    monkeypatch.setenv("DARWIN_ASSISTED_CLAIM_CONSTRUCTION_PROVIDER", "fake")
+    get_settings.cache_clear()
+    try:
+        propose_result = CliRunner().invoke(
+            app,
+            [
+                "research",
+                "propose-claims",
+                "--research-run-id",
+                ids["run"],
+                "--research-plan-item-id",
+                ids["plan"],
+                "--evidence-id",
+                ids["evidence"],
+                "--objective",
+                "CLI claim objective",
+                "--instruction",
+                "Create one bounded Claim candidate.",
+                "--provider",
+                "fake",
+            ],
+        )
+        with session_factory() as session:
+            candidate_id = str(session.query(ClaimCandidateProposal).one().id)
+            assert session.query(Evidence).count() == 1
+            assert session.query(Claim).count() == 0
+
+        list_result = CliRunner().invoke(app, ["research", "claim-candidates"])
+        accept_result = CliRunner().invoke(app, ["research", "accept-claim", candidate_id])
+    finally:
+        get_settings.cache_clear()
+
+    assert propose_result.exit_code == 0
+    assert "Candidates: 1" in propose_result.stdout
+    assert "Status: VALIDATED" in propose_result.stdout
+    assert list_result.exit_code == 0
+    assert "Candidates: 1" in list_result.stdout
+    assert accept_result.exit_code == 0
+    assert "Status: ACCEPTED" in accept_result.stdout
+    with session_factory() as session:
+        assert session.query(Evidence).count() == 1
+        assert session.query(Claim).count() == 1
+        assert session.query(ClaimEvidence).count() == 1
+        assert session.query(ClaimValidationEvaluation).count() == 0

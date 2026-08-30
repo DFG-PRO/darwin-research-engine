@@ -4,9 +4,15 @@ from sqlalchemy import inspect
 
 from darwin.db import Base
 from darwin.db.models import (
+    AssistedClaimConstructionRequest,
+    AssistedClaimConstructionRequestStatus,
     AssistedEvidenceExtractionRequest,
     AssistedExtractionRequestStatus,
     Claim,
+    ClaimCandidateAcceptanceMode,
+    ClaimCandidateEvidence,
+    ClaimCandidateProposal,
+    ClaimCandidateStatus,
     ClaimConstructionEvidence,
     ClaimConstructionMethod,
     ClaimConstructionRecord,
@@ -59,6 +65,9 @@ def test_model_imports() -> None:
     assert ResearchFraming.__tablename__ == "research_framings"
     assert ResearchPlanItem.__tablename__ == "research_plan_items"
     assert ResearchSynthesisRecord.__tablename__ == "research_synthesis_records"
+    assert AssistedClaimConstructionRequest.__tablename__ == "assisted_claim_construction_requests"
+    assert ClaimCandidateProposal.__tablename__ == "claim_candidate_proposals"
+    assert ClaimCandidateEvidence.__tablename__ == "claim_candidate_evidence"
 
 
 def test_metadata_contains_expected_tables() -> None:
@@ -79,6 +88,9 @@ def test_metadata_contains_expected_tables() -> None:
         "research_synthesis_records",
         "assisted_evidence_extraction_requests",
         "evidence_candidate_proposals",
+        "assisted_claim_construction_requests",
+        "claim_candidate_proposals",
+        "claim_candidate_evidence",
     }.issubset(Base.metadata.tables)
 
 
@@ -190,6 +202,56 @@ def test_required_fields_are_not_nullable() -> None:
             "payload",
             "created_at",
         },
+        AssistedClaimConstructionRequest: {
+            "id",
+            "research_run_id",
+            "research_plan_item_id",
+            "evidence_ids",
+            "research_objective",
+            "construction_instruction",
+            "max_candidate_count",
+            "provider_id",
+            "construction_method_version",
+            "schema_version",
+            "status",
+            "candidate_count",
+            "accepted_candidate_count",
+            "warning_count",
+            "error_count",
+            "warnings",
+            "errors",
+            "request_payload",
+            "validation_result",
+            "provider_metadata",
+            "usage_metadata",
+            "cost_metadata",
+            "metadata",
+            "created_at",
+        },
+        ClaimCandidateProposal: {
+            "id",
+            "construction_request_id",
+            "research_run_id",
+            "research_plan_item_id",
+            "candidate_key",
+            "proposed_claim_text",
+            "proposed_claim_type",
+            "qualifiers",
+            "assumptions",
+            "construction_rationale",
+            "status",
+            "provider_warnings",
+            "validation_result",
+            "provider_metadata",
+            "created_at",
+        },
+        ClaimCandidateEvidence: {
+            "id",
+            "claim_candidate_id",
+            "evidence_id",
+            "relation",
+            "created_at",
+        },
     }
 
     for model, column_names in expected_required_columns.items():
@@ -219,6 +281,9 @@ def test_core_enums_are_small_and_explicit() -> None:
     assert ResearchPlanItemStatus.SATISFIED.value == "SATISFIED"
     assert ResearchPlanPriority.HIGH.value == "HIGH"
     assert ResearchCompletionAssessment.COMPLETE.value == "COMPLETE"
+    assert AssistedClaimConstructionRequestStatus.COMPLETED.value == "COMPLETED"
+    assert ClaimCandidateStatus.REJECTED_INVALID_PROVENANCE.value == "REJECTED_INVALID_PROVENANCE"
+    assert ClaimCandidateAcceptanceMode.MANUAL.value == "MANUAL"
 
 
 def test_relationships_preserve_research_provenance() -> None:

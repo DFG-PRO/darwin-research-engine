@@ -9,7 +9,7 @@ def test_alembic_script_directory_loads_revision() -> None:
     config = Config("alembic.ini")
     script = ScriptDirectory.from_config(config)
 
-    assert script.get_current_head() == "0008_assisted_evidence_extraction"
+    assert script.get_current_head() == "0009_assisted_claim_construction"
 
 
 def test_alembic_offline_upgrade_compiles(capsys) -> None:
@@ -38,6 +38,9 @@ def test_alembic_offline_upgrade_compiles(capsys) -> None:
     assert "CREATE TABLE research_plan_proposal_items" in captured.out
     assert "CREATE TABLE assisted_evidence_extraction_requests" in captured.out
     assert "CREATE TABLE evidence_candidate_proposals" in captured.out
+    assert "CREATE TABLE assisted_claim_construction_requests" in captured.out
+    assert "CREATE TABLE claim_candidate_proposals" in captured.out
+    assert "CREATE TABLE claim_candidate_evidence" in captured.out
     assert "COMMIT;" in captured.out
 
 
@@ -98,6 +101,21 @@ def test_alembic_offline_downgrade_assisted_extraction_revision_compiles(capsys)
     assert "DROP TABLE assisted_evidence_extraction_requests" in captured.out
 
 
+def test_alembic_offline_downgrade_assisted_claim_revision_compiles(capsys) -> None:
+    config = Config("alembic.ini")
+
+    command.downgrade(
+        config,
+        "0009_assisted_claim_construction:0008_assisted_evidence_extraction",
+        sql=True,
+    )
+
+    captured = capsys.readouterr()
+    assert "DROP TABLE claim_candidate_evidence" in captured.out
+    assert "DROP TABLE claim_candidate_proposals" in captured.out
+    assert "DROP TABLE assisted_claim_construction_requests" in captured.out
+
+
 def test_alembic_offline_downgrade_source_content_revision_compiles(capsys) -> None:
     config = Config("alembic.ini")
 
@@ -122,3 +140,4 @@ def test_migration_file_exists() -> None:
     assert Path("alembic/versions/0006_claim_construction_synthesis.py").is_file()
     assert Path("alembic/versions/0007_research_planning.py").is_file()
     assert Path("alembic/versions/0008_assisted_evidence_extraction.py").is_file()
+    assert Path("alembic/versions/0009_assisted_claim_construction.py").is_file()

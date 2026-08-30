@@ -2,7 +2,7 @@
 
 Darwin v0.1 is the initial foundation for a research and intelligence engine intended to preserve traceable evidence, validated knowledge, historical context, confidence, outcomes, errors, contradictions, assumptions, and decisions over time.
 
-Current status: **Phase 1.9B Assisted Evidence Extraction foundation**. This repository provides the technical base, persistent research schema, lifecycle persistence services, deterministic structural claim validation, a supplied-material research orchestrator, controlled external source discovery, explicit source-content snapshot/segment/evidence extraction, caller-supplied claim construction, evidence-grounded structured synthesis records, a reproducible supplied-material benchmark, a controlled research planning proposal boundary, and assisted evidence candidate proposals with explicit acceptance into canonical Evidence. It does not implement autonomous research, crawling, semantic claim validation, automatic claim generation, confidence scoring, recommendation systems, memory retrieval, or domain intelligence features.
+Current status: **Phase 1.9C Assisted Claim Construction foundation**. This repository provides the technical base, persistent research schema, lifecycle persistence services, deterministic structural claim validation, a supplied-material research orchestrator, controlled external source discovery, explicit source-content snapshot/segment/evidence extraction, caller-supplied claim construction, evidence-grounded structured synthesis records, a reproducible supplied-material benchmark, a controlled research planning proposal boundary, assisted evidence candidate proposals with explicit acceptance into canonical Evidence, and assisted Claim candidate proposals with explicit acceptance into canonical Claims. It does not implement autonomous research, crawling, semantic claim validation, automatic claim validation from provider output, confidence scoring, recommendation systems, memory retrieval, or domain intelligence features.
 
 ## What Exists
 
@@ -21,6 +21,7 @@ Current status: **Phase 1.9B Assisted Evidence Extraction foundation**. This rep
 - Structured synthesis records that preserve claim evidence provenance, conclusion dependencies, validation state, and deterministic warnings.
 - Controlled research plan proposals with explicit approval into Phase 1.8 framing and plan records.
 - Assisted evidence candidate proposals with exact grounding and explicit acceptance into canonical Evidence.
+- Assisted Claim candidate proposals grounded only in canonical Evidence and explicit acceptance into canonical Claims.
 - Phase 1.8I supplied-material Research MVP benchmark artifacts and closure documentation.
 - Minimal Typer CLI.
 - Deterministic pytest coverage for imports, configuration, CLI, and database foundation setup.
@@ -95,6 +96,18 @@ Supported settings:
 - `DARWIN_ASSISTED_EVIDENCE_EXTRACTION_MAX_CANDIDATES`: maximum proposed candidates. Defaults to `5`.
 - `DARWIN_ASSISTED_EVIDENCE_EXTRACTION_MAX_SEGMENT_CHARS`: maximum characters in one submitted segment. Defaults to `4000`.
 - `DARWIN_ASSISTED_EVIDENCE_EXTRACTION_MAX_TOTAL_REQUEST_CHARS`: maximum total submitted segment characters. Defaults to `12000`.
+- `DARWIN_ASSISTED_CLAIM_CONSTRUCTION_PROVIDER`: assisted claim construction provider. Defaults to `fake`; supported values are `fake` and `openai`.
+- `DARWIN_ASSISTED_CLAIM_CONSTRUCTION_MODEL`: assisted claim construction model identifier. Defaults to `fake-claim-constructor-v1`.
+- `DARWIN_ASSISTED_CLAIM_CONSTRUCTION_METHOD_VERSION`: assisted claim construction method version. Defaults to `assisted-claim-construction-1.9c`.
+- `DARWIN_ASSISTED_CLAIM_CONSTRUCTION_PROMPT_VERSION`: assisted claim construction prompt version. Defaults to `assisted-claim-construction-prompt-1.9c`.
+- `DARWIN_ASSISTED_CLAIM_CONSTRUCTION_SCHEMA_VERSION`: assisted claim construction schema version. Defaults to `claim-candidate-proposal-schema-1.9c`.
+- `DARWIN_ASSISTED_CLAIM_CONSTRUCTION_TIMEOUT_SECONDS`: HTTP timeout for live claim construction providers. Defaults to `20`.
+- `DARWIN_ASSISTED_CLAIM_CONSTRUCTION_MAX_EVIDENCE_ITEMS`: maximum submitted Evidence records. Defaults to `8`.
+- `DARWIN_ASSISTED_CLAIM_CONSTRUCTION_MAX_EVIDENCE_CHARS`: maximum total submitted Evidence statement characters. Defaults to `12000`.
+- `DARWIN_ASSISTED_CLAIM_CONSTRUCTION_MAX_CANDIDATES`: maximum proposed Claim candidates. Defaults to `5`.
+- `DARWIN_ASSISTED_CLAIM_CONSTRUCTION_MAX_CLAIM_CHARS`: maximum characters in one Claim candidate. Defaults to `1000`.
+- `DARWIN_ASSISTED_CLAIM_CONSTRUCTION_MAX_QUALIFIERS`: maximum qualifiers on one Claim candidate. Defaults to `6`.
+- `DARWIN_ASSISTED_CLAIM_CONSTRUCTION_MAX_ASSUMPTIONS`: maximum assumptions on one Claim candidate. Defaults to `6`.
 
 Do not commit real secrets or local `.env` files.
 
@@ -141,6 +154,10 @@ darwin research propose-evidence --research-run-id <run-uuid> --research-plan-it
 darwin research evidence-candidates
 darwin research accept-evidence <candidate-uuid>
 darwin research reject-evidence <candidate-uuid> --reason "reason"
+darwin research propose-claims --research-run-id <run-uuid> --research-plan-item-id <item-uuid> --evidence-id <evidence-uuid> --objective "Research objective" --instruction "Claim construction instruction" --claim-type PROPOSITION --temporal-scope "optional scope" --provider fake
+darwin research claim-candidates
+darwin research accept-claim <candidate-uuid>
+darwin research reject-claim <candidate-uuid> --reason "reason"
 darwin research acquire "search query" --research-run-id <run-uuid> --provider fake
 darwin research fetch-source <source-uuid> --research-run-id <run-uuid> --fetcher fake
 darwin research source-content <snapshot-uuid>
@@ -156,6 +173,8 @@ These commands require a configured database and call the service layer directly
 `darwin research plan` creates a structured planning proposal only. It does not create Sources, Evidence, Claims, Conclusions, acquisition requests, content snapshots, construction records, or synthesis records. `darwin research plan-approve` explicitly converts a proposal into a `ResearchRun`, `ResearchFraming`, and pending `ResearchPlanItem` records.
 
 `darwin research propose-evidence` creates grounded candidate proposals only. A candidate is not canonical Evidence. `darwin research accept-evidence` reloads the stored segment, revalidates exact offsets and excerpt text, creates canonical Evidence through `ResearchService`, and links the candidate to Evidence. Rejection preserves candidate history.
+
+`darwin research propose-claims` creates Evidence-grounded Claim candidate proposals only. A candidate is not a canonical `Claim`, cannot cite arbitrary source URLs, and cannot create validation, Conclusions, recommendations, or confidence. `darwin research accept-claim` revalidates candidate Evidence provenance, creates a canonical Claim and ClaimEvidence links, and leaves structural validation unassessed until explicitly invoked.
 
 `darwin research acquire` discovers source candidates and registers accepted Sources. Provider snippets remain acquisition audit material only; they are not automatically Evidence, Claims, or Conclusions.
 
@@ -215,11 +234,11 @@ Phase 1.8B defines the first domain migration:
 alembic upgrade head
 ```
 
-The current migrations create the core research data model, source lineage fields, claim validation evaluations, explicit human validation events, research framings, research plan items, synthesis records, acquisition requests, source candidates, source content snapshots, source content segments, evidence extraction records, claim construction audit records, claim construction evidence selections, conclusion-to-claim links, planning proposals, planning proposal items, assisted extraction requests, and evidence candidate proposals. They do not provision a database, crawl content, or implement autonomous research.
+The current migrations create the core research data model, source lineage fields, claim validation evaluations, explicit human validation events, research framings, research plan items, synthesis records, acquisition requests, source candidates, source content snapshots, source content segments, evidence extraction records, claim construction audit records, claim construction evidence selections, conclusion-to-claim links, planning proposals, planning proposal items, assisted extraction requests, evidence candidate proposals, assisted claim construction requests, claim candidate proposals, and claim candidate Evidence links. They do not provision a database, crawl content, or implement autonomous research.
 
 ## Architectural Boundary
 
-Darwin v0.1 is documented as a modular monolith with a single orchestrator. Phase 1.8E implemented the first deterministic supplied-material orchestrator. Phase 1.8F added a provider-agnostic external acquisition layer that can feed registered Sources into the existing manual boundary. Phase 1.8G added explicit content snapshots and segment-based Evidence extraction. Phase 1.8H added explicit evidence-to-claim construction and deterministic structured synthesis. Phase 1.8I adds benchmark, audit, and closure records. Phase 1.9A adds a controlled provider-agnostic planning proposal boundary. Phase 1.9B adds controlled assisted evidence candidate extraction with exact grounding and explicit acceptance.
+Darwin v0.1 is documented as a modular monolith with a single orchestrator. Phase 1.8E implemented the first deterministic supplied-material orchestrator. Phase 1.8F added a provider-agnostic external acquisition layer that can feed registered Sources into the existing manual boundary. Phase 1.8G added explicit content snapshots and segment-based Evidence extraction. Phase 1.8H added explicit evidence-to-claim construction and deterministic structured synthesis. Phase 1.8I adds benchmark, audit, and closure records. Phase 1.9A adds a controlled provider-agnostic planning proposal boundary. Phase 1.9B adds controlled assisted evidence candidate extraction with exact grounding and explicit acceptance. Phase 1.9C adds controlled assisted Claim candidate construction grounded in canonical Evidence with explicit acceptance.
 
 Current v0.1 persistence decisions:
 
@@ -234,5 +253,6 @@ Current v0.1 persistence decisions:
 - Structured synthesis does not generate autonomous conclusions or recommendations.
 - Planning proposals do not generate Sources, Evidence, Claims, Conclusions, or autonomous acquisition.
 - Evidence candidate proposals do not create canonical Evidence, Claims, Conclusions, validation, synthesis, acquisition, or content fetches without explicit downstream calls.
+- Claim candidate proposals do not create canonical Claims, ClaimEvidence, validation, Conclusions, recommendations, confidence scores, Sources, or Evidence until explicit acceptance creates only the Claim and ClaimEvidence boundary.
 
 The authoritative Phase 1.8 technical record is `docs/phases/phase-1.8/PHASE-1.8-MASTER.md`. The closure assessment is `docs/phases/phase-1.8/PHASE-1.8-CLOSURE.md`.

@@ -168,7 +168,7 @@ class Settings(BaseSettings):
     )
     openai_api_key: SecretStr | None = Field(
         default=None,
-        description="OpenAI API credential for optional live planning. Never persisted.",
+        description="OpenAI API credential for optional live providers. Never persisted.",
     )
     assisted_evidence_extraction_provider: Literal["fake", "openai"] = Field(
         default="fake",
@@ -216,6 +216,65 @@ class Settings(BaseSettings):
         default=12000,
         ge=1,
         description="Maximum total segment characters submitted in one extraction request.",
+    )
+    assisted_claim_construction_provider: Literal["fake", "openai"] = Field(
+        default="fake",
+        description="Assisted claim construction provider identifier.",
+    )
+    assisted_claim_construction_model: str = Field(
+        default="fake-claim-constructor-v1",
+        description="Provider model identifier for assisted claim construction.",
+    )
+    assisted_claim_construction_method_version: str = Field(
+        default="assisted-claim-construction-1.9c",
+        description="Version identifier for assisted claim construction.",
+    )
+    assisted_claim_construction_prompt_version: str = Field(
+        default="assisted-claim-construction-prompt-1.9c",
+        description="Version identifier for assisted claim construction prompt semantics.",
+    )
+    assisted_claim_construction_schema_version: str = Field(
+        default="claim-candidate-proposal-schema-1.9c",
+        description="Version identifier for assisted claim construction structured output.",
+    )
+    assisted_claim_construction_timeout_seconds: float = Field(
+        default=20.0,
+        ge=0.1,
+        description="HTTP timeout for configured live claim construction providers.",
+    )
+    assisted_claim_construction_max_evidence_items: int = Field(
+        default=8,
+        ge=1,
+        le=50,
+        description="Maximum Evidence items per assisted claim construction request.",
+    )
+    assisted_claim_construction_max_evidence_chars: int = Field(
+        default=12000,
+        ge=1,
+        description="Maximum total Evidence characters in one claim construction request.",
+    )
+    assisted_claim_construction_max_candidates: int = Field(
+        default=5,
+        ge=1,
+        le=25,
+        description="Maximum Claim candidates per assisted claim construction request.",
+    )
+    assisted_claim_construction_max_claim_chars: int = Field(
+        default=1000,
+        ge=1,
+        description="Maximum characters allowed in one assisted Claim candidate.",
+    )
+    assisted_claim_construction_max_qualifiers: int = Field(
+        default=6,
+        ge=0,
+        le=25,
+        description="Maximum qualifier entries per assisted Claim candidate.",
+    )
+    assisted_claim_construction_max_assumptions: int = Field(
+        default=6,
+        ge=0,
+        le=25,
+        description="Maximum assumption entries per assisted Claim candidate.",
     )
 
 

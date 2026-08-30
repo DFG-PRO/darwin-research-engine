@@ -10,6 +10,17 @@ from pydantic import ValidationError
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
+from darwin.claim_assistance import (
+    AssistedClaimConstructionRequest,
+    AssistedClaimConstructionService,
+    ClaimCandidateAcceptanceError,
+    ClaimCandidateRejectionError,
+    ClaimCandidateValidationError,
+    ClaimConstructionConfigurationError,
+    ClaimConstructionProviderError,
+    FakeClaimConstructionProvider,
+    OpenAIClaimConstructionProvider,
+)
 from darwin.acquisition import (
     AcquisitionConfigurationError,
     AcquisitionRequest,
@@ -29,7 +40,7 @@ from darwin.content import (
 )
 from darwin.construction import ClaimConstructionError, ClaimConstructionRequest, ClaimConstructionService
 from darwin.db import get_engine, session_scope
-from darwin.db.models import Source, SourceContentSnapshot, SourceType
+from darwin.db.models import ClaimType, Source, SourceContentSnapshot, SourceType
 from darwin.extraction import (
     AssistedEvidenceExtractionRequest,
     AssistedEvidenceExtractionService,
@@ -590,6 +601,122 @@ def reject_assisted_evidence(
         raise typer.Exit(code=1) from exc
 
 
+@research_app.command("propose-claims")
+def propose_assisted_claims(
+    research_run_id: str = typer.Option(..., help="Research run UUID."),
+    research_plan_item_id: str = typer.Option(..., help="Research plan item UUID."),
+    evidence_id: list[str] | None = typer.Option(None, help="Canonical Evidence UUID. Repeatable."),
+    objective: str = typer.Option(..., help="Research objective for construction."),
+    instruction: str = typer.Option(..., help="Claim construction instruction."),
+    claim_type: ClaimType | None = typer.Option(None, help="Optional expected Claim type."),
+    temporal_scope: str | None = typer.Option(None, help="Optional temporal scope for proposed Claims."),
+    provider: str | None = typer.Option(None, help="Assisted claim provider override: fake or openai."),
+    max_candidates: int = typer.Option(3, min=1, help="Maximum Claim candidates."),
+) -> None:
+    """Propose Evidence-grounded Claim candidates without creating canonical Claims."""
+
+    settings = get_settings()
+    try:
+        request = AssistedClaimConstructionRequest(
+            research_run_id=research_run_id,
+            research_plan_item_id=research_plan_item_id,
+            evidence_ids=[uuid.UUID(value) for value in evidence_id or []],
+            research_objective=objective,
+            construction_instruction=instruction,
+            expected_claim_type=claim_type,
+            temporal_scope=temporal_scope,
+            max_candidate_count=max_candidates,
+        )
+        selected_provider = _assisted_claim_provider(settings, provider)
+        with session_scope(settings) as session:
+            result = AssistedClaimConstructionService(
+                session,
+                settings,
+                selected_provider,
+            ).propose_claims(request)
+            typer.echo(f"Construction request: {result.construction_request_id}")
+            typer.echo(f"Provider: {result.provider_id}")
+            typer.echo(f"Model: {result.provider_model or 'n/a'}")
+            typer.echo(f"Candidates: {result.candidate_count}")
+            for candidate in result.candidates:
+                _echo_claim_candidate(candidate)
+            if result.warnings:
+                typer.echo("Warnings: " + ", ".join(result.warnings))
+    except (
+        ValueError,
+        ValidationError,
+        ClaimConstructionConfigurationError,
+        ClaimConstructionProviderError,
+        ClaimCandidateValidationError,
+        SQLAlchemyError,
+    ) as exc:
+        typer.echo(f"Assisted claim proposal failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+@research_app.command("claim-candidates")
+def list_claim_candidates(
+    construction_request_id: str | None = typer.Option(None, help="Optional construction request UUID."),
+) -> None:
+    """List persisted assisted Claim candidates."""
+
+    settings = get_settings()
+    try:
+        with session_scope(settings) as session:
+            candidates = AssistedClaimConstructionService(session, settings).list_candidates(
+                construction_request_id
+            )
+            typer.echo(f"Candidates: {len(candidates)}")
+            for candidate in candidates:
+                _echo_claim_candidate(candidate)
+    except (ValueError, SQLAlchemyError) as exc:
+        typer.echo(f"Claim candidate listing failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+@research_app.command("accept-claim")
+def accept_assisted_claim(
+    candidate_id: str = typer.Argument(..., help="Claim candidate UUID."),
+) -> None:
+    """Explicitly accept one Claim candidate into canonical Claim records."""
+
+    settings = get_settings()
+    try:
+        with session_scope(settings) as session:
+            result = AssistedClaimConstructionService(session, settings).accept_claim_candidate(
+                candidate_id
+            )
+            typer.echo(f"Candidate accepted: {result.candidate_id}")
+            typer.echo(f"Claim: {result.claim_id}")
+            typer.echo(f"Acceptance mode: {result.acceptance_mode.value}")
+            typer.echo(f"Status: {result.status.value}")
+    except (ValueError, ClaimCandidateAcceptanceError, SQLAlchemyError) as exc:
+        typer.echo(f"Claim candidate acceptance failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+@research_app.command("reject-claim")
+def reject_assisted_claim(
+    candidate_id: str = typer.Argument(..., help="Claim candidate UUID."),
+    reason: str = typer.Option(..., help="Rejection reason."),
+) -> None:
+    """Reject one assisted Claim candidate and preserve audit history."""
+
+    settings = get_settings()
+    try:
+        with session_scope(settings) as session:
+            result = AssistedClaimConstructionService(session, settings).reject_claim_candidate(
+                candidate_id,
+                reason=reason,
+            )
+            typer.echo(f"Candidate rejected: {result.candidate_id}")
+            typer.echo(f"Status: {result.status.value}")
+            typer.echo(f"Reason: {result.rejection_reason}")
+    except (ValueError, ClaimCandidateRejectionError, SQLAlchemyError) as exc:
+        typer.echo(f"Claim candidate rejection failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
 def _planning_provider(settings, provider: str | None):
     provider_name = provider or settings.research_planning_provider
     if provider_name == "fake":
@@ -608,6 +735,15 @@ def _assisted_extraction_provider(settings, provider: str | None):
     raise ExtractionConfigurationError(f"unknown assisted extraction provider {provider_name!r}")
 
 
+def _assisted_claim_provider(settings, provider: str | None):
+    provider_name = provider or settings.assisted_claim_construction_provider
+    if provider_name == "fake":
+        return FakeClaimConstructionProvider(model=settings.assisted_claim_construction_model)
+    if provider_name == "openai":
+        return OpenAIClaimConstructionProvider(settings)
+    raise ClaimConstructionConfigurationError(f"unknown assisted claim provider {provider_name!r}")
+
+
 def _echo_candidate(candidate) -> None:
     typer.echo(f"- Candidate: {candidate.id}")
     typer.echo(f"  Status: {candidate.status.value}")
@@ -617,6 +753,21 @@ def _echo_candidate(candidate) -> None:
     typer.echo(f"  Grounding: {candidate.grounding_validation.get('reason', 'unknown')}")
     typer.echo(f"  Excerpt: {candidate.exact_excerpt}")
     typer.echo(f"  Relevance: {candidate.relevance_explanation}")
+
+
+def _echo_claim_candidate(candidate) -> None:
+    typer.echo(f"- Candidate: {candidate.id}")
+    typer.echo(f"  Status: {candidate.status.value}")
+    if candidate.claim_id is not None:
+        typer.echo(f"  Claim: {candidate.claim_id}")
+    typer.echo(f"  Type: {candidate.proposed_claim_type.value}")
+    typer.echo(f"  Claim text: {candidate.proposed_claim_text}")
+    evidence_ids = ", ".join(f"{link.relation.value}:{link.evidence_id}" for link in candidate.evidence)
+    typer.echo(f"  Evidence: {evidence_ids}")
+    if candidate.qualifiers:
+        typer.echo("  Qualifiers: " + ", ".join(candidate.qualifiers))
+    if candidate.provider_warnings:
+        typer.echo("  Warnings: " + ", ".join(candidate.provider_warnings))
 
 
 def _echo_plan_summary(session, settings, proposal_id: str | uuid.UUID) -> None:
