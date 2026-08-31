@@ -60,6 +60,7 @@ def test_research_cli_help() -> None:
     assert "Research run persistence smoke commands" in result.stdout
     assert "create-run" in result.stdout
     assert "get-run" in result.stdout
+    assert "list-runs" in result.stdout
     assert "validate-claim" in result.stdout
     assert "run-manual" in result.stdout
     assert "plan" in result.stdout
@@ -125,6 +126,60 @@ def test_research_loop_cli_dry_run_smoke(tmp_path, monkeypatch) -> None:
     assert "State: COMPLETED" in show_result.stdout
     assert events_result.exit_code == 0
     assert "Events:" in events_result.stdout
+
+
+def test_research_cli_lists_runs_with_status_filter(tmp_path, monkeypatch) -> None:
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'darwin-list-runs.sqlite'}"
+    engine = create_engine(database_url)
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine, expire_on_commit=False)
+    with session_factory() as session:
+        service = ResearchService(session)
+        pending_run = service.create_research_run(
+            title="CLI pending run",
+            public_id="CLI-PENDING",
+            research_method_version="0.1.0",
+            darwin_version="0.1.0",
+        )
+        hidden_run = service.create_research_run(
+            title="CLI hidden run",
+            public_id="CLI-HIDDEN",
+            research_method_version="0.1.0",
+            darwin_version="0.1.0",
+        )
+        service.mark_started(hidden_run.id)
+        service.mark_completed(hidden_run.id)
+        source = service.register_source(
+            source_type=SourceType.WEB_PAGE,
+            canonical_locator="https://example.com/cli-list-runs",
+        )
+        service.register_evidence(
+            research_run_id=pending_run.id,
+            source_id=source.id,
+            evidence_type=EvidenceType.EXCERPT,
+            statement="CLI list-runs reports evidence counts.",
+        )
+        session.commit()
+
+    monkeypatch.setenv("DARWIN_DATABASE_URL", database_url)
+    get_settings.cache_clear()
+    try:
+        result = CliRunner().invoke(
+            app,
+            ["research", "list-runs", "--status", "pending", "--limit", "1"],
+        )
+        invalid = CliRunner().invoke(app, ["research", "list-runs", "--status", "unknown"])
+    finally:
+        get_settings.cache_clear()
+
+    assert result.exit_code == 0
+    assert "Research runs: 1" in result.stdout
+    assert "CLI-PENDING" in result.stdout
+    assert "Status: PENDING" in result.stdout
+    assert "Counts: sources=1, evidence=1, claims=0, conclusions=0" in result.stdout
+    assert "CLI-HIDDEN" not in result.stdout
+    assert invalid.exit_code == 1
+    assert "Unsupported research run status" in invalid.stdout
 
 
 def test_research_loop_cli_lists_executions_for_research_run(tmp_path, monkeypatch) -> None:

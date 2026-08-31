@@ -8,7 +8,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, distinct, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from darwin.db.models import (
@@ -41,6 +41,7 @@ from darwin.research.schemas import (
     EvidenceRead,
     ResearchRecordRead,
     ResearchRunRead,
+    ResearchRunSummaryRead,
     SourceRead,
 )
 
@@ -129,6 +130,97 @@ class ResearchService:
 
     def mark_failed(self, identifier: uuid.UUID | str) -> ResearchRun:
         return self.update_status(identifier, ResearchRunStatus.FAILED)
+
+    def list_research_runs(
+        self,
+        *,
+        status: ResearchRunStatus | str | None = None,
+        limit: int = 50,
+    ) -> list[ResearchRunSummaryRead]:
+        """Return bounded, read-only summaries of persisted research runs."""
+
+        status_filter = self._parse_research_run_status(status) if status is not None else None
+        limit_value = self._validate_list_limit(limit)
+
+        evidence_counts = (
+            select(
+                Evidence.research_run_id.label("research_run_id"),
+                func.count(Evidence.id).label("evidence_count"),
+                func.count(distinct(Evidence.source_id)).label("source_count"),
+            )
+            .group_by(Evidence.research_run_id)
+            .subquery()
+        )
+        claim_counts = (
+            select(
+                Claim.research_run_id.label("research_run_id"),
+                func.count(Claim.id).label("claim_count"),
+            )
+            .group_by(Claim.research_run_id)
+            .subquery()
+        )
+        conclusion_counts = (
+            select(
+                Conclusion.research_run_id.label("research_run_id"),
+                func.count(Conclusion.id).label("conclusion_count"),
+            )
+            .group_by(Conclusion.research_run_id)
+            .subquery()
+        )
+
+        statement = (
+            select(
+                ResearchRun,
+                func.coalesce(evidence_counts.c.source_count, 0).label("source_count"),
+                func.coalesce(evidence_counts.c.evidence_count, 0).label("evidence_count"),
+                func.coalesce(claim_counts.c.claim_count, 0).label("claim_count"),
+                func.coalesce(conclusion_counts.c.conclusion_count, 0).label(
+                    "conclusion_count"
+                ),
+            )
+            .outerjoin(
+                evidence_counts,
+                evidence_counts.c.research_run_id == ResearchRun.id,
+            )
+            .outerjoin(claim_counts, claim_counts.c.research_run_id == ResearchRun.id)
+            .outerjoin(
+                conclusion_counts,
+                conclusion_counts.c.research_run_id == ResearchRun.id,
+            )
+            .order_by(
+                ResearchRun.updated_at.desc(),
+                ResearchRun.created_at.desc(),
+                ResearchRun.public_id.asc(),
+            )
+            .limit(limit_value)
+        )
+        if status_filter is not None:
+            statement = statement.where(ResearchRun.status == status_filter)
+
+        return [
+            ResearchRunSummaryRead(
+                id=research_run.id,
+                public_id=research_run.public_id,
+                title=research_run.title,
+                status=research_run.status,
+                created_at=research_run.created_at,
+                updated_at=research_run.updated_at,
+                completed_at=research_run.completed_at,
+                research_method_version=research_run.research_method_version,
+                darwin_version=research_run.darwin_version,
+                source_count=source_count,
+                evidence_count=evidence_count,
+                claim_count=claim_count,
+                conclusion_count=conclusion_count,
+            )
+            for (
+                research_run,
+                source_count,
+                evidence_count,
+                claim_count,
+                conclusion_count,
+            ) in self.session.execute(statement).all()
+        ]
 
     def register_source(
         self,
@@ -355,6 +447,30 @@ class ResearchService:
             return
         if confidence < 0 or confidence > 1:
             raise InvalidResearchRelationship("Confidence must be between 0 and 1")
+
+    def _parse_research_run_status(
+        self,
+        status: ResearchRunStatus | str,
+    ) -> ResearchRunStatus:
+        if isinstance(status, ResearchRunStatus):
+            return status
+
+        normalized = status.strip().replace("-", "_").upper()
+        try:
+            return ResearchRunStatus[normalized]
+        except KeyError as exc:
+            valid_statuses = ", ".join(
+                sorted(status.value.lower().replace("_", "-") for status in ResearchRunStatus)
+            )
+            raise ValueError(
+                f"Unsupported research run status: {status}. "
+                f"Expected one of: {valid_statuses}"
+            ) from exc
+
+    def _validate_list_limit(self, limit: int) -> int:
+        if limit < 1 or limit > 200:
+            raise ValueError("Research run list limit must be between 1 and 200")
+        return limit
 
     def _parse_uuid(self, identifier: uuid.UUID | str) -> uuid.UUID | None:
         if isinstance(identifier, uuid.UUID):

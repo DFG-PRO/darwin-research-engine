@@ -170,6 +170,41 @@ def get_research_run(identifier: str = typer.Argument(..., help="Research run UU
         raise typer.Exit(code=1) from exc
 
 
+@research_app.command("list-runs")
+def list_research_runs(
+    status: str | None = typer.Option(
+        None,
+        help="Optional status filter: pending, in-progress, completed, failed.",
+    ),
+    limit: int = typer.Option(50, min=1, max=200, help="Maximum research runs to list."),
+) -> None:
+    """List persisted research runs without modifying them."""
+
+    settings = get_settings()
+    try:
+        with session_scope(settings) as session:
+            summaries = ResearchService(session).list_research_runs(
+                status=status,
+                limit=limit,
+            )
+            typer.echo(f"Research runs: {len(summaries)}")
+            for summary in summaries:
+                typer.echo(f"- {summary.public_id} ({summary.id})")
+                typer.echo(f"  Title: {summary.title}")
+                typer.echo(f"  Status: {summary.status.value}")
+                typer.echo(f"  Updated: {summary.updated_at.isoformat()}")
+                typer.echo(
+                    "  Counts: "
+                    f"sources={summary.source_count}, "
+                    f"evidence={summary.evidence_count}, "
+                    f"claims={summary.claim_count}, "
+                    f"conclusions={summary.conclusion_count}"
+                )
+    except (ValueError, ResearchServiceError, SQLAlchemyError) as exc:
+        typer.echo(f"Research command failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
 @research_app.command("validate-claim")
 def validate_claim(claim_id: str = typer.Argument(..., help="Claim UUID to validate structurally.")) -> None:
     """Validate a claim's structural evidentiary state."""

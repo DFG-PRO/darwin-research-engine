@@ -7,6 +7,7 @@ from darwin.research.errors import (
     ResearchRunNotFound,
     ResearchServiceError,
 )
+from darwin.research.schemas import ResearchRunSummaryRead
 from darwin.research.service import ResearchService
 
 __all__ = [
@@ -14,6 +15,7 @@ __all__ = [
     "InvalidResearchRelationship",
     "InvalidResearchRunTransition",
     "ResearchRunNotFound",
+    "ResearchRunSummaryRead",
     "ResearchService",
     "ResearchServiceError",
 ]

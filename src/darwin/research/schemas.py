@@ -98,6 +98,24 @@ class ResearchRunRead(BaseModel):
     context: dict[str, Any]
 
 
+class ResearchRunSummaryRead(BaseModel):
+    """Compact read model for listing persisted research runs."""
+
+    id: uuid.UUID
+    public_id: str
+    title: str
+    status: ResearchRunStatus
+    created_at: datetime
+    updated_at: datetime
+    completed_at: datetime | None
+    research_method_version: str
+    darwin_version: str
+    source_count: int
+    evidence_count: int
+    claim_count: int
+    conclusion_count: int
+
+
 class ResearchRecordRead(BaseModel):
     """Traceable read model for one persisted research run."""
 

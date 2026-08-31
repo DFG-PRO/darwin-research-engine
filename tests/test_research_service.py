@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import create_engine, event, func, select
@@ -331,6 +332,104 @@ def test_research_record_retrieval_preserves_traceability(session_factory) -> No
         assert record.claim_evidence[0].claim_id == claim.id
         assert record.claim_evidence[0].evidence_id == evidence.id
         assert record.conclusions[0].id == conclusion.id
+
+
+def test_list_research_runs_returns_ordered_summaries_with_counts_and_limit(
+    session_factory,
+) -> None:
+    with session_factory() as session:
+        service = ResearchService(session)
+        first_run = service.create_research_run(
+            title="Older run",
+            public_id="RUN-OLD",
+            research_method_version="0.1.0",
+            darwin_version="0.1.0",
+        )
+        second_run = service.create_research_run(
+            title="Newer run",
+            public_id="RUN-NEW",
+            research_method_version="0.1.0",
+            darwin_version="0.1.0",
+        )
+        source = service.register_source(
+            source_type=SourceType.WEB_PAGE,
+            canonical_locator="https://example.com/list-runs",
+        )
+        first_evidence = service.register_evidence(
+            research_run_id=first_run.id,
+            source_id=source.id,
+            evidence_type=EvidenceType.EXCERPT,
+            statement="First item of list evidence.",
+        )
+        service.register_evidence(
+            research_run_id=first_run.id,
+            source_id=source.id,
+            evidence_type=EvidenceType.SUMMARY,
+            statement="Second item of list evidence.",
+        )
+        claim = service.register_claim(
+            research_run_id=first_run.id,
+            statement="Listing summaries preserve traceability counts.",
+        )
+        service.link_claim_evidence(
+            claim_id=claim.id,
+            evidence_id=first_evidence.id,
+            relation=ClaimEvidenceRelation.SUPPORTS,
+        )
+        service.register_conclusion(
+            research_run_id=first_run.id,
+            statement="The summary includes conclusion counts.",
+        )
+        first_run.updated_at = datetime(2026, 1, 1, tzinfo=UTC)
+        second_run.updated_at = datetime(2026, 1, 2, tzinfo=UTC)
+        session.flush()
+
+        summaries = service.list_research_runs(limit=2)
+        limited = service.list_research_runs(limit=1)
+
+        assert [summary.public_id for summary in summaries] == ["RUN-NEW", "RUN-OLD"]
+        assert [summary.public_id for summary in limited] == ["RUN-NEW"]
+        older_summary = summaries[1]
+        assert older_summary.id == first_run.id
+        assert older_summary.status is ResearchRunStatus.PENDING
+        assert older_summary.source_count == 1
+        assert older_summary.evidence_count == 2
+        assert older_summary.claim_count == 1
+        assert older_summary.conclusion_count == 1
+
+
+def test_list_research_runs_filters_status_and_validates_input(session_factory) -> None:
+    with session_factory() as session:
+        service = ResearchService(session)
+        pending_run = service.create_research_run(
+            title="Pending run",
+            public_id="RUN-PENDING",
+            research_method_version="0.1.0",
+            darwin_version="0.1.0",
+        )
+        completed_run = service.create_research_run(
+            title="Completed run",
+            public_id="RUN-COMPLETED",
+            research_method_version="0.1.0",
+            darwin_version="0.1.0",
+        )
+        service.mark_started(completed_run.id)
+        service.mark_completed(completed_run.id)
+        run_count_before = session.scalar(select(func.count()).select_from(ResearchRun))
+
+        completed = service.list_research_runs(status="completed")
+        pending = service.list_research_runs(status=ResearchRunStatus.PENDING)
+        in_progress = service.list_research_runs(status="in-progress")
+        run_count_after = session.scalar(select(func.count()).select_from(ResearchRun))
+
+        assert [summary.public_id for summary in completed] == ["RUN-COMPLETED"]
+        assert [summary.public_id for summary in pending] == [pending_run.public_id]
+        assert in_progress == []
+        assert run_count_after == run_count_before
+        with pytest.raises(ValueError, match="Unsupported research run status"):
+            service.list_research_runs(status="unknown")
+        with pytest.raises(ValueError, match="between 1 and 200"):
+            service.list_research_runs(limit=0)
 
 
 def test_failed_transaction_does_not_leave_partial_research_run(session_factory) -> None:

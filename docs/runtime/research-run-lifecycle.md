@@ -16,6 +16,7 @@ Implemented responsibilities:
 - Link claims to evidence with explicit relationship semantics.
 - Register conclusions linked to a research run.
 - Retrieve an assembled research record with traceable components.
+- List bounded research run summaries with optional status filtering.
 - Validate a claim's structural evidentiary state through the validation service.
 
 The CLI calls the service layer and does not duplicate lifecycle or relationship rules.
@@ -89,6 +90,19 @@ Implemented structural rules:
 - conclusions
 
 Traceability is preserved through explicit IDs and relationship records.
+
+## Listing Behavior
+
+`list_research_runs` returns read-only `ResearchRun` summaries ordered by latest update first.
+It accepts an optional status filter and a bounded result limit, and includes aggregate
+counts for distinct sources, evidence, claims, and conclusions. The query uses existing
+research lifecycle tables only; it does not require a schema migration or new dependency.
+
+CLI usage:
+
+```shell
+darwin research list-runs --status completed --limit 25
+```
 
 ## Error Behavior
 
