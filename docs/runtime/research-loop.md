@@ -95,6 +95,7 @@ darwin research loop-start "Question?" --mode auto-grounded --publish-report
 darwin research loop-start "Question?" --mode dry-run
 darwin research loop-show <execution-id>
 darwin research loop-events <execution-id>
+darwin research loop-list --research-run-id <research-run-id-or-public-id>
 darwin research loop-resume <execution-id>
 ```
 
@@ -108,7 +109,7 @@ Useful flags:
 --publish-report
 ```
 
-The CLI prints state, stage, stop reason, completion assessment, consumed counters, output IDs/artifact path, warnings, errors, and pending action. It does not print provider secrets.
+The CLI prints state, stage, stop reason, completion assessment, consumed counters, output IDs/artifact path, warnings, errors, and pending action. `loop-list` is read-only and prints persisted execution summaries for one ResearchRun: execution id, mode, state, stop reason, completion assessment, iteration count, counters, linked synthesis/report ids, and latest event timestamp. It does not print provider secrets.
 
 ## Observability
 

@@ -479,6 +479,46 @@ def loop_events(
         raise typer.Exit(code=1) from exc
 
 
+@research_app.command("loop-list")
+def list_research_loops(
+    research_run_id: str = typer.Option(..., help="Research run UUID or public ID."),
+) -> None:
+    """List persisted research loop execution summaries for one ResearchRun."""
+
+    settings = get_settings()
+    try:
+        with session_scope(settings) as session:
+            summaries = ResearchLoopController(session, settings).list_for_research_run(research_run_id)
+            typer.echo(f"Loop executions: {len(summaries)}")
+            for summary in summaries:
+                typer.echo(f"- Execution: {summary.execution_id}")
+                typer.echo(f"  Mode: {summary.execution_mode.value}")
+                typer.echo(f"  State: {summary.state.value}")
+                typer.echo(f"  Stop reason: {summary.stop_reason.value if summary.stop_reason else 'n/a'}")
+                typer.echo(
+                    "  Completion: "
+                    f"{summary.completion_assessment.value if summary.completion_assessment else 'n/a'}"
+                )
+                typer.echo(f"  Iterations: {summary.iteration_count}")
+                typer.echo(
+                    "  Counters: "
+                    f"searches={summary.counters.searches}, "
+                    f"sources={summary.counters.sources_registered}, "
+                    f"fetches={summary.counters.content_fetches}, "
+                    f"evidence={summary.counters.accepted_evidence}, "
+                    f"claims={summary.counters.accepted_claims}"
+                )
+                typer.echo(f"  Synthesis proposal: {summary.synthesis_proposal_id or 'n/a'}")
+                typer.echo(f"  Report: {summary.report_id or 'n/a'}")
+                typer.echo(
+                    "  Latest event: "
+                    f"{summary.latest_event_at.isoformat() if summary.latest_event_at else 'n/a'}"
+                )
+    except (ValueError, ResearchServiceError, ResearchLoopError, SQLAlchemyError) as exc:
+        typer.echo(f"Research loop list failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
 @research_app.command("loop-resume")
 def resume_research_loop(
     execution_id: str = typer.Argument(..., help="Research loop execution UUID."),

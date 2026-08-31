@@ -139,6 +139,26 @@ class ResearchLoopResult(BaseModel):
     next_required_action: str | None
 
 
+class ResearchLoopExecutionSummary(BaseModel):
+    """Read-only summary for listing loop executions by ResearchRun."""
+
+    execution_id: uuid.UUID
+    research_run_id: uuid.UUID
+    execution_mode: ResearchLoopExecutionMode
+    state: ResearchLoopState
+    current_stage: str
+    stop_reason: ResearchLoopStopReason | None
+    completion_assessment: ResearchCompletionAssessment | None
+    iteration_count: int
+    counters: ResearchLoopCounters
+    synthesis_proposal_id: uuid.UUID | None
+    report_id: uuid.UUID | None
+    latest_event_at: datetime | None
+    started_at: datetime | None
+    completed_at: datetime | None
+    updated_at: datetime
+
+
 TERMINAL_LOOP_STATES = {
     ResearchLoopState.COMPLETED,
     ResearchLoopState.STOPPED_NEEDS_EVIDENCE,
