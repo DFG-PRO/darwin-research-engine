@@ -341,6 +341,76 @@ class Settings(BaseSettings):
         le=100,
         description="Maximum limitations included in one narrative proposal.",
     )
+    research_loop_method_version: str = Field(
+        default="controlled-research-loop-1.9e",
+        description="Version identifier for controlled research loop execution.",
+    )
+    research_loop_max_iterations: int = Field(
+        default=2,
+        ge=1,
+        le=10,
+        description="System maximum research loop iterations.",
+    )
+    research_loop_max_searches: int = Field(
+        default=4,
+        ge=0,
+        le=50,
+        description="System maximum acquisition searches per loop execution.",
+    )
+    research_loop_max_sources: int = Field(
+        default=10,
+        ge=0,
+        le=200,
+        description="System maximum source candidates counted per loop execution.",
+    )
+    research_loop_max_fetched_sources: int = Field(
+        default=4,
+        ge=0,
+        le=100,
+        description="System maximum content fetches per loop execution.",
+    )
+    research_loop_max_segments: int = Field(
+        default=8,
+        ge=0,
+        le=500,
+        description="System maximum content segments processed per loop execution.",
+    )
+    research_loop_max_evidence_candidates: int = Field(
+        default=8,
+        ge=0,
+        le=500,
+        description="System maximum Evidence candidates per loop execution.",
+    )
+    research_loop_max_accepted_evidence: int = Field(
+        default=5,
+        ge=0,
+        le=500,
+        description="System maximum accepted canonical Evidence records per loop execution.",
+    )
+    research_loop_max_claim_candidates: int = Field(
+        default=6,
+        ge=0,
+        le=500,
+        description="System maximum Claim candidates per loop execution.",
+    )
+    research_loop_max_accepted_claims: int = Field(
+        default=4,
+        ge=0,
+        le=500,
+        description="System maximum accepted canonical Claims per loop execution.",
+    )
+    research_loop_max_provider_calls: int = Field(
+        default=30,
+        ge=0,
+        le=1000,
+        description="System maximum provider/service-boundary calls per loop execution.",
+    )
+    research_loop_max_runtime_seconds: float = Field(
+        default=60.0,
+        ge=0.1,
+        le=3600,
+        description="System maximum runtime hint per synchronous loop invocation.",
+    )
 
 
 @lru_cache

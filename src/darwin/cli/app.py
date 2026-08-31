@@ -76,6 +76,12 @@ from darwin.planning import (
     ResearchPlanningRequest,
 )
 from darwin.research import ResearchService, ResearchServiceError
+from darwin.research_loop import (
+    ResearchLoopBudgets,
+    ResearchLoopController,
+    ResearchLoopError,
+    ResearchLoopRequest,
+)
 from darwin.synthesis import StructuredSynthesisService
 from darwin.validation import ClaimValidationError, ClaimValidationService
 
@@ -397,6 +403,95 @@ def reject_narrative_synthesis(
             typer.echo(f"Reason: {result.rejection_reason}")
     except (ValueError, NarrativeSynthesisRejectionError, SQLAlchemyError) as exc:
         typer.echo(f"Narrative synthesis rejection failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+@research_app.command("loop-start")
+def start_research_loop(
+    question: str = typer.Argument(..., help="Explicit research question."),
+    mode: str = typer.Option("manual-gate", help="manual-gate, auto-grounded, or dry-run."),
+    objective: str | None = typer.Option(None, help="Optional research objective."),
+    scope: str | None = typer.Option(None, help="Optional research scope."),
+    max_iterations: int = typer.Option(1, min=1, help="Maximum loop iterations."),
+    max_searches: int = typer.Option(1, min=0, help="Maximum acquisition searches."),
+    max_sources: int = typer.Option(3, min=0, help="Maximum source candidates/registrations."),
+    max_fetched_sources: int = typer.Option(2, min=0, help="Maximum content fetches."),
+    publish_report: bool = typer.Option(False, help="Publish the validated narrative report when allowed."),
+) -> None:
+    """Start a bounded synchronous research loop execution."""
+
+    settings = get_settings()
+    try:
+        request = ResearchLoopRequest(
+            research_question=question,
+            objective=objective,
+            scope=scope,
+            execution_mode=_loop_mode(mode),
+            budgets=ResearchLoopBudgets(
+                max_iterations=max_iterations,
+                max_searches=max_searches,
+                max_sources=max_sources,
+                max_fetched_sources=max_fetched_sources,
+            ),
+            publish_report=publish_report,
+        )
+        with session_scope(settings) as session:
+            result = ResearchLoopController(session, settings).start(request)
+            _echo_loop_result(result)
+    except (ValueError, ValidationError, ResearchLoopError, SQLAlchemyError) as exc:
+        typer.echo(f"Research loop start failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+@research_app.command("loop-show")
+def show_research_loop(
+    execution_id: str = typer.Argument(..., help="Research loop execution UUID."),
+) -> None:
+    """Show a persisted research loop execution summary."""
+
+    settings = get_settings()
+    try:
+        with session_scope(settings) as session:
+            _echo_loop_result(ResearchLoopController(session, settings).show(execution_id))
+    except (ValueError, ResearchLoopError, SQLAlchemyError) as exc:
+        typer.echo(f"Research loop lookup failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+@research_app.command("loop-events")
+def loop_events(
+    execution_id: str = typer.Argument(..., help="Research loop execution UUID."),
+) -> None:
+    """List append-only research loop execution events."""
+
+    settings = get_settings()
+    try:
+        with session_scope(settings) as session:
+            events = ResearchLoopController(session, settings).events(execution_id)
+            typer.echo(f"Events: {len(events)}")
+            for event in events:
+                typer.echo(
+                    f"{event.sequence}. {event.stage.value} {event.event_type} "
+                    f"[{event.status}] {event.message or ''}"
+                )
+    except (ValueError, ResearchLoopError, SQLAlchemyError) as exc:
+        typer.echo(f"Research loop events failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
+@research_app.command("loop-resume")
+def resume_research_loop(
+    execution_id: str = typer.Argument(..., help="Research loop execution UUID."),
+) -> None:
+    """Resume a supported waiting research loop execution."""
+
+    settings = get_settings()
+    try:
+        with session_scope(settings) as session:
+            result = ResearchLoopController(session, settings).resume(execution_id)
+            _echo_loop_result(result)
+    except (ValueError, ResearchLoopError, SQLAlchemyError) as exc:
+        typer.echo(f"Research loop resume failed: {exc}")
         raise typer.Exit(code=1) from exc
 
 
@@ -884,6 +979,52 @@ def _narrative_synthesis_provider(settings, provider: str | None):
     if provider_name == "openai":
         return OpenAINarrativeSynthesisProvider(settings)
     raise NarrativeSynthesisConfigurationError(f"unknown narrative synthesis provider {provider_name!r}")
+
+
+def _loop_mode(value: str):
+    normalized = value.strip().lower().replace("_", "-")
+    mapping = {
+        "manual-gate": "MANUAL_GATE",
+        "auto-grounded": "AUTO_GROUNDED",
+        "dry-run": "DRY_RUN",
+    }
+    if normalized not in mapping:
+        raise ValueError(f"unknown research loop mode {value!r}")
+    from darwin.db.models import ResearchLoopExecutionMode
+
+    return ResearchLoopExecutionMode(mapping[normalized])
+
+
+def _echo_loop_result(result) -> None:
+    typer.echo(f"Execution: {result.execution_id}")
+    typer.echo(f"Research run: {result.research_run_id or 'n/a'}")
+    typer.echo(f"State: {result.state.value}")
+    typer.echo(f"Stage: {result.current_stage}")
+    typer.echo(f"Stop reason: {result.stop_reason.value if result.stop_reason else 'n/a'}")
+    typer.echo(
+        "Completion: "
+        f"{result.completion_assessment.value if result.completion_assessment else 'n/a'}"
+    )
+    typer.echo(f"Iterations: {result.iteration_count}/{result.budgets.max_iterations}")
+    typer.echo(
+        "Counters: "
+        f"searches={result.counters.searches}/{result.budgets.max_searches}, "
+        f"sources={result.counters.sources_registered}/{result.budgets.max_sources}, "
+        f"fetches={result.counters.content_fetches}/{result.budgets.max_fetched_sources}, "
+        f"evidence={result.accepted_evidence_count}/{result.budgets.max_accepted_evidence}, "
+        f"claims={result.accepted_claim_count}/{result.budgets.max_accepted_claims}"
+    )
+    if result.synthesis_proposal_id is not None:
+        typer.echo(f"Synthesis proposal: {result.synthesis_proposal_id}")
+    if result.report_id is not None:
+        typer.echo(f"Report: {result.report_id}")
+        typer.echo(f"Artifact: {result.report_artifact_path}")
+    if result.next_required_action:
+        typer.echo(f"Next action: {result.next_required_action}")
+    if result.warnings:
+        typer.echo("Warnings: " + ", ".join(result.warnings))
+    if result.errors:
+        typer.echo("Errors: " + ", ".join(result.errors))
 
 
 def _echo_candidate(candidate) -> None:

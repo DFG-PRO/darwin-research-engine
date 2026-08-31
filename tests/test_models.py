@@ -41,6 +41,12 @@ from darwin.db.models import (
     NarrativeSynthesisRequest,
     NarrativeSynthesisRequestStatus,
     ResearchCompletionAssessment,
+    ResearchLoopEvent,
+    ResearchLoopExecution,
+    ResearchLoopExecutionMode,
+    ResearchLoopQuery,
+    ResearchLoopState,
+    ResearchLoopStopReason,
     ResearchFraming,
     ResearchPlanItem,
     ResearchPlanItemStatus,
@@ -78,6 +84,9 @@ def test_model_imports() -> None:
     assert NarrativeSynthesisProposal.__tablename__ == "narrative_synthesis_proposals"
     assert NarrativeSynthesisFinding.__tablename__ == "narrative_synthesis_findings"
     assert NarrativeResearchReport.__tablename__ == "narrative_research_reports"
+    assert ResearchLoopExecution.__tablename__ == "research_loop_executions"
+    assert ResearchLoopEvent.__tablename__ == "research_loop_events"
+    assert ResearchLoopQuery.__tablename__ == "research_loop_queries"
 
 
 def test_metadata_contains_expected_tables() -> None:
@@ -105,6 +114,9 @@ def test_metadata_contains_expected_tables() -> None:
         "narrative_synthesis_proposals",
         "narrative_synthesis_findings",
         "narrative_research_reports",
+        "research_loop_executions",
+        "research_loop_events",
+        "research_loop_queries",
     }.issubset(Base.metadata.tables)
 
 
@@ -339,6 +351,49 @@ def test_required_fields_are_not_nullable() -> None:
             "generated_at",
             "metadata",
         },
+        ResearchLoopExecution: {
+            "id",
+            "execution_mode",
+            "state",
+            "current_stage",
+            "iteration_count",
+            "request_payload",
+            "budget_payload",
+            "counters",
+            "provider_payload",
+            "warnings",
+            "errors",
+            "resume_metadata",
+            "loop_method_version",
+            "created_at",
+            "updated_at",
+        },
+        ResearchLoopEvent: {
+            "id",
+            "execution_id",
+            "sequence",
+            "stage",
+            "event_type",
+            "status",
+            "linked_object_ids",
+            "counters",
+            "provider_metadata",
+            "warnings",
+            "errors",
+            "created_at",
+        },
+        ResearchLoopQuery: {
+            "id",
+            "execution_id",
+            "research_run_id",
+            "research_plan_item_id",
+            "iteration",
+            "provider_id",
+            "query_text",
+            "rationale",
+            "result_count",
+            "created_at",
+        },
     }
 
     for model, column_names in expected_required_columns.items():
@@ -373,6 +428,9 @@ def test_core_enums_are_small_and_explicit() -> None:
     assert ClaimCandidateAcceptanceMode.MANUAL.value == "MANUAL"
     assert NarrativeSynthesisRequestStatus.COMPLETED.value == "COMPLETED"
     assert NarrativeSynthesisProposalStatus.PUBLISHED.value == "PUBLISHED"
+    assert ResearchLoopExecutionMode.AUTO_GROUNDED.value == "AUTO_GROUNDED"
+    assert ResearchLoopState.WAITING_EVIDENCE_APPROVAL.value == "WAITING_EVIDENCE_APPROVAL"
+    assert ResearchLoopStopReason.SUCCESS_COMPLETE.value == "SUCCESS_COMPLETE"
 
 
 def test_relationships_preserve_research_provenance() -> None:

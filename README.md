@@ -2,7 +2,7 @@
 
 Darwin v0.1 is the initial foundation for a research and intelligence engine intended to preserve traceable evidence, validated knowledge, historical context, confidence, outcomes, errors, contradictions, assumptions, and decisions over time.
 
-Current status: **Phase 1.9D controlled narrative research synthesis foundation**. This repository provides the technical base, persistent research schema, lifecycle persistence services, deterministic structural claim validation, a supplied-material research orchestrator, controlled external source discovery, explicit source-content snapshot/segment/evidence extraction, caller-supplied claim construction, evidence-grounded structured synthesis records, a reproducible supplied-material benchmark, a controlled research planning proposal boundary, assisted evidence candidate proposals with explicit acceptance into canonical Evidence, assisted Claim candidate proposals with explicit acceptance into canonical Claims, and grounded narrative synthesis proposals with explicit Markdown report publication. It does not implement autonomous research, crawling, semantic claim validation, automatic claim validation from provider output, confidence scoring, recommendation systems, memory retrieval, or domain intelligence features.
+Current status: **Phase 1.9E controlled live research loop v0.1**. This repository provides the technical base, persistent research schema, lifecycle persistence services, deterministic structural claim validation, a supplied-material research orchestrator, controlled external source discovery, explicit source-content snapshot/segment/evidence extraction, caller-supplied claim construction, evidence-grounded structured synthesis records, a reproducible supplied-material benchmark, a controlled research planning proposal boundary, assisted evidence candidate proposals with explicit acceptance into canonical Evidence, assisted Claim candidate proposals with explicit acceptance into canonical Claims, grounded narrative synthesis proposals with explicit Markdown report publication, and a bounded synchronous research-loop controller that coordinates these capabilities through explicit modes, budgets, events, stop reasons, and resume gates. It does not implement unbounded autonomous research, crawling beyond configured acquisition/fetch providers, semantic claim validation, automatic claim validation from provider output, confidence scoring, recommendation systems, memory retrieval, background research, trading, or domain intelligence features.
 
 ## What Exists
 
@@ -23,6 +23,7 @@ Current status: **Phase 1.9D controlled narrative research synthesis foundation*
 - Assisted evidence candidate proposals with exact grounding and explicit acceptance into canonical Evidence.
 - Assisted Claim candidate proposals grounded only in canonical Evidence and explicit acceptance into canonical Claims.
 - Narrative synthesis proposals grounded in canonical Claims, validation history, ClaimEvidence provenance, Conclusions, contradictions, and evidence gaps, with explicit publication to Markdown artifacts.
+- Controlled research-loop execution records, append-only loop events, bounded query records, manual gates, auto-grounded acceptance, dry-run mode, stop reasons, and resume for supported waiting states.
 - Phase 1.8I supplied-material Research MVP benchmark artifacts and closure documentation.
 - Minimal Typer CLI.
 - Deterministic pytest coverage for imports, configuration, CLI, and database foundation setup.
@@ -122,6 +123,18 @@ Supported settings:
 - `DARWIN_NARRATIVE_SYNTHESIS_MAX_REPORT_CHARS`: maximum rendered report characters. Defaults to `50000`.
 - `DARWIN_NARRATIVE_SYNTHESIS_MAX_ASSUMPTIONS`: maximum assumptions in one narrative proposal. Defaults to `10`.
 - `DARWIN_NARRATIVE_SYNTHESIS_MAX_LIMITATIONS`: maximum limitations in one narrative proposal. Defaults to `10`.
+- `DARWIN_RESEARCH_LOOP_METHOD_VERSION`: controlled research loop method version. Defaults to `controlled-research-loop-1.9e`.
+- `DARWIN_RESEARCH_LOOP_MAX_ITERATIONS`: system maximum loop iterations. Defaults to `2`.
+- `DARWIN_RESEARCH_LOOP_MAX_SEARCHES`: system maximum acquisition searches per loop execution. Defaults to `4`.
+- `DARWIN_RESEARCH_LOOP_MAX_SOURCES`: system maximum source candidates/registrations per loop execution. Defaults to `10`.
+- `DARWIN_RESEARCH_LOOP_MAX_FETCHED_SOURCES`: system maximum content fetches per loop execution. Defaults to `4`.
+- `DARWIN_RESEARCH_LOOP_MAX_SEGMENTS`: system maximum content segments processed per loop execution. Defaults to `8`.
+- `DARWIN_RESEARCH_LOOP_MAX_EVIDENCE_CANDIDATES`: system maximum Evidence candidates per loop execution. Defaults to `8`.
+- `DARWIN_RESEARCH_LOOP_MAX_ACCEPTED_EVIDENCE`: system maximum accepted Evidence records per loop execution. Defaults to `5`.
+- `DARWIN_RESEARCH_LOOP_MAX_CLAIM_CANDIDATES`: system maximum Claim candidates per loop execution. Defaults to `6`.
+- `DARWIN_RESEARCH_LOOP_MAX_ACCEPTED_CLAIMS`: system maximum accepted Claims per loop execution. Defaults to `4`.
+- `DARWIN_RESEARCH_LOOP_MAX_PROVIDER_CALLS`: system maximum provider/service-boundary calls per loop execution. Defaults to `30`.
+- `DARWIN_RESEARCH_LOOP_MAX_RUNTIME_SECONDS`: system maximum runtime hint per synchronous loop invocation. Defaults to `60`.
 
 Do not commit real secrets or local `.env` files.
 
@@ -176,6 +189,12 @@ darwin research propose-synthesis <run-uuid-or-public-id> --provider fake
 darwin research synthesis-show <proposal-uuid>
 darwin research publish-synthesis <proposal-uuid>
 darwin research reject-synthesis <proposal-uuid> --reason "reason"
+darwin research loop-start "Research question" --mode manual-gate
+darwin research loop-start "Research question" --mode auto-grounded --publish-report
+darwin research loop-start "Research question" --mode dry-run
+darwin research loop-show <execution-uuid>
+darwin research loop-events <execution-uuid>
+darwin research loop-resume <execution-uuid>
 darwin research acquire "search query" --research-run-id <run-uuid> --provider fake
 darwin research fetch-source <source-uuid> --research-run-id <run-uuid> --fetcher fake
 darwin research source-content <snapshot-uuid>
@@ -195,6 +214,8 @@ These commands require a configured database and call the service layer directly
 `darwin research propose-claims` creates Evidence-grounded Claim candidate proposals only. A candidate is not a canonical `Claim`, cannot cite arbitrary source URLs, and cannot create validation, Conclusions, recommendations, or confidence. `darwin research accept-claim` revalidates candidate Evidence provenance, creates a canonical Claim and ClaimEvidence links, and leaves structural validation unassessed until explicitly invoked.
 
 `darwin research propose-synthesis` creates a structured narrative proposal from bounded canonical Darwin context only. A proposal is not canonical knowledge and is not a report until `darwin research publish-synthesis` revalidates it and writes a Markdown artifact below `DARWIN_ARTIFACT_ROOT`.
+
+`darwin research loop-start` starts one bounded synchronous research loop in an explicit mode. The loop uses existing services for planning, acquisition, content fetch, Evidence candidates, Claim candidates, validation, structured synthesis, and narrative synthesis. `loop-show` and `loop-events` inspect persisted execution state. `loop-resume` continues only from supported waiting states after explicit operator action.
 
 `darwin research acquire` discovers source candidates and registers accepted Sources. Provider snippets remain acquisition audit material only; they are not automatically Evidence, Claims, or Conclusions.
 
@@ -218,6 +239,12 @@ Run the Phase 1.8I benchmark regression tests:
 
 ```bash
 pytest tests/test_phase_1_8i_benchmark.py
+```
+
+Run the Phase 1.9E controlled-loop benchmark fixture:
+
+```bash
+pytest tests/test_research_loop.py::test_phase_1_9e_deterministic_loop_benchmark_fixture
 ```
 
 Run the benchmark directly:

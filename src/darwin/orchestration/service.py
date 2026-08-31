@@ -66,6 +66,12 @@ from darwin.planning import (
     ResearchPlanningRequest,
 )
 from darwin.research import ResearchService
+from darwin.research_loop import (
+    ResearchLoopController,
+    ResearchLoopEventRead,
+    ResearchLoopRequest,
+    ResearchLoopResult,
+)
 from darwin.synthesis import ConclusionClaimLinkRequest, StructuredSynthesisService
 from darwin.validation import ClaimValidationService
 
@@ -208,6 +214,26 @@ class ResearchOrchestrator:
             proposal_id,
             reason=reason,
         )
+
+    def start_research_loop(self, request: ResearchLoopRequest) -> ResearchLoopResult:
+        """Start a bounded synchronous research loop execution."""
+
+        return ResearchLoopController(self.session, self.settings).start(request)
+
+    def resume_research_loop(self, execution_id: uuid.UUID | str) -> ResearchLoopResult:
+        """Resume a waiting research loop execution by explicit invocation."""
+
+        return ResearchLoopController(self.session, self.settings).resume(execution_id)
+
+    def show_research_loop(self, execution_id: uuid.UUID | str) -> ResearchLoopResult:
+        """Inspect a persisted research loop execution."""
+
+        return ResearchLoopController(self.session, self.settings).show(execution_id)
+
+    def research_loop_events(self, execution_id: uuid.UUID | str) -> list[ResearchLoopEventRead]:
+        """Return append-only events for a research loop execution."""
+
+        return ResearchLoopController(self.session, self.settings).events(execution_id)
 
     def run_manual(self, manual_input: ManualResearchInput) -> ResearchOrchestrationResult:
         self._validate_unique_keys("source", [source.source_key for source in manual_input.sources])

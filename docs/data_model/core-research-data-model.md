@@ -432,6 +432,70 @@ Core fields:
 - `generated_at`: publication timestamp.
 - `metadata`: JSONB payload for report metadata.
 
+### ResearchLoopExecution
+
+Phase 1.9E adds a top-level persisted record for one bounded synchronous research-loop execution.
+
+Core fields:
+
+- `id`: UUID primary key.
+- `research_run_id`: nullable link populated after planning approval creates a `ResearchRun`.
+- `execution_mode`: `MANUAL_GATE`, `AUTO_GROUNDED`, or `DRY_RUN`.
+- `state`: current explicit loop state.
+- `current_stage`: string copy of the current stage for operational display.
+- `iteration_count`: consumed iteration count.
+- `request_payload`: JSONB snapshot of the caller request.
+- `budget_payload`: JSONB snapshot of request-level budgets.
+- `counters`: JSONB consumed counters.
+- `provider_payload`: JSONB non-secret provider/model identifiers.
+- `stop_reason`: nullable explicit stop reason.
+- `completion_assessment`: nullable deterministic completion assessment.
+- result links to planning proposal, structured synthesis record, narrative synthesis proposal, and narrative report.
+- warning/error arrays and resume metadata.
+- `loop_method_version`: controlled loop method version.
+- `started_at`, `completed_at`, `created_at`, `updated_at`: timestamps.
+
+Loop execution state is orchestration state. Canonical research facts remain in existing ResearchRun, Source, Evidence, Claim, validation, synthesis, and report tables.
+
+### ResearchLoopEvent
+
+Represents one append-only audit event for a loop execution.
+
+Core fields:
+
+- `id`: UUID primary key.
+- `execution_id`: required link to `ResearchLoopExecution`.
+- `sequence`: monotonically increasing event number within one execution.
+- `stage`: loop state at event time.
+- `event_type`: event name.
+- `status`: stage-specific status string.
+- `message`, `code`: optional operator-readable diagnostics.
+- `linked_object_ids`: JSONB links to related Darwin records.
+- `counters`: JSONB counter snapshot at event time.
+- `provider_metadata`: JSONB non-secret provider metadata.
+- warning/error arrays.
+- `created_at`: event timestamp.
+
+The `(execution_id, sequence)` pair is unique.
+
+### ResearchLoopQuery
+
+Represents one bounded acquisition query issued by the loop.
+
+Core fields:
+
+- `id`: UUID primary key.
+- `execution_id`: required link to `ResearchLoopExecution`.
+- `research_run_id`: required link to the approved research run.
+- `research_plan_item_id`: required link to the plan item that caused the query.
+- `acquisition_request_id`: nullable link to the acquisition request once acquisition runs.
+- `iteration`: loop iteration number.
+- `provider_id`: acquisition provider identifier.
+- `query_text`: transparent query text derived from the research question and approved plan item.
+- `rationale`: operator-readable derivation rationale.
+- `result_count`: acquisition result count.
+- `created_at`: query timestamp.
+
 ## Provenance Model
 
 Provenance is relational, not hidden in JSON:
@@ -454,6 +518,9 @@ Provenance is relational, not hidden in JSON:
 - Narrative synthesis proposals link to one request and one research run.
 - Narrative synthesis findings link to one proposal and carry canonical Claim, Conclusion, and Evidence references.
 - Narrative research reports link to one proposal and one research run, and store artifact checksum/path metadata.
+- Research loop executions optionally link to one approved ResearchRun and downstream synthesis/report results.
+- Research loop events link to one execution and preserve stage/counter/object history.
+- Research loop queries link to one execution, one ResearchRun, and one ResearchPlanItem.
 
 This allows future validation, contradiction tracking, and historical retrieval work to build on explicit relationships.
 
@@ -478,6 +545,8 @@ Source / Snapshot / Segment
 
 Narrative synthesis can organize canonical state, but it cannot retroactively modify Evidence, Claims, ClaimEvidence, validation state, Conclusions, ResearchPlan records, or Source provenance.
 
+Phase 1.9E research-loop provenance is orchestration provenance. It coordinates the existing stack and records decisions, budgets, and stops, but it does not replace subsystem provenance.
+
 ## Lifecycle and Status Concepts
 
 Current enum sets are intentionally small:
@@ -495,6 +564,9 @@ Current enum sets are intentionally small:
 - Claim candidate acceptance modes: `MANUAL`, `AUTO_ACCEPTED`.
 - Narrative synthesis requests: `COMPLETED`, `FAILED`.
 - Narrative synthesis proposals: `VALIDATED`, `REJECTED_INVALID_GROUNDING`, `REJECTED`, `PUBLISHED`.
+- Research loop modes: `MANUAL_GATE`, `AUTO_GROUNDED`, `DRY_RUN`.
+- Research loop states: `PENDING`, `PLANNING`, `ACQUIRING`, `FETCHING_CONTENT`, `EXTRACTING_EVIDENCE`, `WAITING_EVIDENCE_APPROVAL`, `CONSTRUCTING_CLAIMS`, `WAITING_CLAIM_APPROVAL`, `VALIDATING`, `ASSESSING_COMPLETION`, `ITERATING`, `SYNTHESIZING`, `WAITING_SYNTHESIS_PUBLICATION`, `COMPLETED`, `STOPPED_NEEDS_EVIDENCE`, `STOPPED_CONTRADICTION`, `STOPPED_HUMAN_REVIEW`, `STOPPED_BUDGET`, `FAILED`.
+- Research loop stop reasons include `SUCCESS_COMPLETE`, approval waits, provider failure, budget exhaustion, time budget exceeded, no usable sources, no canonical Evidence/Claims, human review, unresolved contradiction, fatal integrity error, and dry-run completion.
 
 These states provide foundation-level lifecycle clarity without implementing research execution behavior.
 
@@ -536,6 +608,18 @@ JSONB is used only for flexible metadata and context payloads:
 - `narrative_synthesis_findings.claim_ids`
 - `narrative_synthesis_findings.conclusion_ids`
 - `narrative_synthesis_findings.evidence_ids`
+- `research_loop_executions.request_payload`
+- `research_loop_executions.budget_payload`
+- `research_loop_executions.counters`
+- `research_loop_executions.provider_payload`
+- `research_loop_executions.warnings`
+- `research_loop_executions.errors`
+- `research_loop_executions.resume_metadata`
+- `research_loop_events.linked_object_ids`
+- `research_loop_events.counters`
+- `research_loop_events.provider_metadata`
+- `research_loop_events.warnings`
+- `research_loop_events.errors`
 - `sources.metadata`
 - `evidence.metadata`
 
@@ -555,24 +639,24 @@ Phase 1.8C enforces these persistence rules above the database schema:
 - Human review and validation require explicit persisted events.
 - Research orchestration persists framing, plan items, and synthesis records.
 - Required plan items are satisfied only by explicit supplied evidence references.
+- Research-loop execution uses explicit state transitions and hard budget checks.
+- Research-loop auto acceptance still calls existing Evidence and Claim candidate acceptance services.
 
 ## Current Limitations
 
 - No live database is provisioned.
-- No research execution pipeline exists.
-- No scraping, fetching, or source ingestion exists.
 - No confidence scoring is implemented.
-- No human validation workflow is implemented.
+- Human validation exists as persisted events, but no operator UI workflow is implemented.
 - No recommendation logic is implemented.
 - No memory retrieval, embeddings, pgvector, vector database, or graph database exists.
+- No background/scheduled research execution exists.
 
 ## Intentionally Deferred
 
-- Web research and provider adapters.
-- Research planner and orchestrator runtime.
-- Evidence extraction and claim generation.
+- Unbounded autonomous web research.
+- Browser automation, OCR, PDF/media ingestion, and crawlers.
+- Recommendation and decision engines.
 - Claim validation and confidence scoring.
-- Synthesis and recommendation engines.
 - Historical memory retrieval.
-- Human validation workflows.
-- Benchmarks and outcome tracking.
+- Human validation workflows beyond persisted review/validation events.
+- Controlled contradiction investigation.

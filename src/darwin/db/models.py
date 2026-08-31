@@ -290,6 +290,59 @@ class NarrativeSynthesisProposalStatus(str, enum.Enum):
     PUBLISHED = "PUBLISHED"
 
 
+class ResearchLoopExecutionMode(str, enum.Enum):
+    """Control mode for bounded research loop execution."""
+
+    MANUAL_GATE = "MANUAL_GATE"
+    AUTO_GROUNDED = "AUTO_GROUNDED"
+    DRY_RUN = "DRY_RUN"
+
+
+class ResearchLoopState(str, enum.Enum):
+    """Persistent state for a controlled research loop execution."""
+
+    PENDING = "PENDING"
+    PLANNING = "PLANNING"
+    ACQUIRING = "ACQUIRING"
+    FETCHING_CONTENT = "FETCHING_CONTENT"
+    EXTRACTING_EVIDENCE = "EXTRACTING_EVIDENCE"
+    WAITING_EVIDENCE_APPROVAL = "WAITING_EVIDENCE_APPROVAL"
+    CONSTRUCTING_CLAIMS = "CONSTRUCTING_CLAIMS"
+    WAITING_CLAIM_APPROVAL = "WAITING_CLAIM_APPROVAL"
+    VALIDATING = "VALIDATING"
+    ASSESSING_COMPLETION = "ASSESSING_COMPLETION"
+    ITERATING = "ITERATING"
+    SYNTHESIZING = "SYNTHESIZING"
+    WAITING_SYNTHESIS_PUBLICATION = "WAITING_SYNTHESIS_PUBLICATION"
+    COMPLETED = "COMPLETED"
+    STOPPED_NEEDS_EVIDENCE = "STOPPED_NEEDS_EVIDENCE"
+    STOPPED_CONTRADICTION = "STOPPED_CONTRADICTION"
+    STOPPED_HUMAN_REVIEW = "STOPPED_HUMAN_REVIEW"
+    STOPPED_BUDGET = "STOPPED_BUDGET"
+    FAILED = "FAILED"
+
+
+class ResearchLoopStopReason(str, enum.Enum):
+    """Explicit stop reason for a controlled research loop execution."""
+
+    SUCCESS_COMPLETE = "SUCCESS_COMPLETE"
+    NEEDS_EVIDENCE_NO_BUDGET = "NEEDS_EVIDENCE_NO_BUDGET"
+    MAX_ITERATIONS_REACHED = "MAX_ITERATIONS_REACHED"
+    UNRESOLVED_CONTRADICTION = "UNRESOLVED_CONTRADICTION"
+    HUMAN_REVIEW_REQUIRED = "HUMAN_REVIEW_REQUIRED"
+    WAITING_EVIDENCE_APPROVAL = "WAITING_EVIDENCE_APPROVAL"
+    WAITING_CLAIM_APPROVAL = "WAITING_CLAIM_APPROVAL"
+    WAITING_SYNTHESIS_PUBLICATION = "WAITING_SYNTHESIS_PUBLICATION"
+    PROVIDER_FAILURE = "PROVIDER_FAILURE"
+    BUDGET_EXHAUSTED = "BUDGET_EXHAUSTED"
+    TIME_BUDGET_EXCEEDED = "TIME_BUDGET_EXCEEDED"
+    NO_USABLE_SOURCES = "NO_USABLE_SOURCES"
+    NO_CANONICAL_EVIDENCE = "NO_CANONICAL_EVIDENCE"
+    NO_CANONICAL_CLAIMS = "NO_CANONICAL_CLAIMS"
+    FATAL_INTEGRITY_ERROR = "FATAL_INTEGRITY_ERROR"
+    DRY_RUN_COMPLETE = "DRY_RUN_COMPLETE"
+
+
 class ConclusionClaimRelation(str, enum.Enum):
     """Explicit relationship between a claim and a conclusion."""
 
@@ -365,6 +418,9 @@ class ResearchRun(Base):
         back_populates="research_run",
     )
     narrative_research_reports: Mapped[list[NarrativeResearchReport]] = relationship(
+        back_populates="research_run",
+    )
+    research_loop_executions: Mapped[list[ResearchLoopExecution]] = relationship(
         back_populates="research_run",
     )
 
@@ -1890,6 +1946,144 @@ class NarrativeResearchReport(Base):
 
     proposal: Mapped[NarrativeSynthesisProposal] = relationship(back_populates="report")
     research_run: Mapped[ResearchRun] = relationship(back_populates="narrative_research_reports")
+
+
+class ResearchLoopExecution(Base):
+    """Top-level durable execution record for a controlled research loop."""
+
+    __tablename__ = "research_loop_executions"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    research_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("research_runs.id", ondelete="RESTRICT"),
+    )
+    execution_mode: Mapped[ResearchLoopExecutionMode] = mapped_column(
+        Enum(ResearchLoopExecutionMode, name="research_loop_execution_mode"),
+        nullable=False,
+    )
+    state: Mapped[ResearchLoopState] = mapped_column(
+        Enum(ResearchLoopState, name="research_loop_state"),
+        nullable=False,
+        default=ResearchLoopState.PENDING,
+    )
+    current_stage: Mapped[str] = mapped_column(String(64), nullable=False)
+    iteration_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    request_payload: Mapped[dict[str, Any]] = mapped_column(jsonb_metadata_type, nullable=False)
+    budget_payload: Mapped[dict[str, Any]] = mapped_column(jsonb_metadata_type, nullable=False)
+    counters: Mapped[dict[str, Any]] = mapped_column(jsonb_metadata_type, nullable=False, default=dict)
+    provider_payload: Mapped[dict[str, Any]] = mapped_column(jsonb_metadata_type, nullable=False, default=dict)
+    stop_reason: Mapped[ResearchLoopStopReason | None] = mapped_column(
+        Enum(ResearchLoopStopReason, name="research_loop_stop_reason"),
+    )
+    completion_assessment: Mapped[ResearchCompletionAssessment | None] = mapped_column(
+        Enum(ResearchCompletionAssessment, name="research_completion_assessment"),
+    )
+    plan_proposal_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("research_plan_proposals.id", ondelete="RESTRICT"),
+    )
+    structured_synthesis_record_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("research_synthesis_records.id", ondelete="RESTRICT"),
+    )
+    narrative_synthesis_proposal_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("narrative_synthesis_proposals.id", ondelete="RESTRICT"),
+    )
+    narrative_report_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("narrative_research_reports.id", ondelete="RESTRICT"),
+    )
+    warnings: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    errors: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    resume_metadata: Mapped[dict[str, Any]] = mapped_column(jsonb_metadata_type, nullable=False, default=dict)
+    loop_method_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+    research_run: Mapped[ResearchRun | None] = relationship(back_populates="research_loop_executions")
+    events: Mapped[list[ResearchLoopEvent]] = relationship(back_populates="execution")
+    queries: Mapped[list[ResearchLoopQuery]] = relationship(back_populates="execution")
+
+
+class ResearchLoopEvent(Base):
+    """Append-only audit event for controlled research loop behavior."""
+
+    __tablename__ = "research_loop_events"
+    __table_args__ = (
+        UniqueConstraint("execution_id", "sequence", name="uq_research_loop_event_sequence"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    execution_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_loop_executions.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    stage: Mapped[ResearchLoopState] = mapped_column(
+        Enum(ResearchLoopState, name="research_loop_state"),
+        nullable=False,
+    )
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(64), nullable=False)
+    message: Mapped[str | None] = mapped_column(Text)
+    code: Mapped[str | None] = mapped_column(String(128))
+    linked_object_ids: Mapped[dict[str, Any]] = mapped_column(jsonb_metadata_type, nullable=False, default=dict)
+    counters: Mapped[dict[str, Any]] = mapped_column(jsonb_metadata_type, nullable=False, default=dict)
+    provider_metadata: Mapped[dict[str, Any]] = mapped_column(jsonb_metadata_type, nullable=False, default=dict)
+    warnings: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    errors: Mapped[list[str]] = mapped_column(jsonb_metadata_type, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+
+    execution: Mapped[ResearchLoopExecution] = relationship(back_populates="events")
+
+
+class ResearchLoopQuery(Base):
+    """Transparent bounded acquisition query generated by a research loop."""
+
+    __tablename__ = "research_loop_queries"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    execution_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_loop_executions.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    research_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    research_plan_item_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("research_plan_items.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    iteration: Mapped[int] = mapped_column(Integer, nullable=False)
+    provider_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    query_text: Mapped[str] = mapped_column(Text, nullable=False)
+    rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    acquisition_request_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("research_acquisition_requests.id", ondelete="RESTRICT"),
+    )
+    result_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+
+    execution: Mapped[ResearchLoopExecution] = relationship(back_populates="queries")
+    research_run: Mapped[ResearchRun] = relationship()
+    research_plan_item: Mapped[ResearchPlanItem] = relationship()
 
 
 class ConclusionClaim(Base):

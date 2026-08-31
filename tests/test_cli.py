@@ -13,6 +13,8 @@ from darwin.db.models import (
     Evidence,
     EvidenceType,
     EvidenceCandidateProposal,
+    ResearchLoopEvent,
+    ResearchLoopExecution,
     ResearchPlanItem,
     ResearchPlanItemStatus,
     ResearchPlanPriority,
@@ -35,8 +37,12 @@ def test_cli_help() -> None:
 
 def test_cli_status(monkeypatch) -> None:
     monkeypatch.setenv("DARWIN_ENV", "test")
+    get_settings.cache_clear()
 
-    result = CliRunner().invoke(app, ["status"])
+    try:
+        result = CliRunner().invoke(app, ["status"])
+    finally:
+        get_settings.cache_clear()
 
     assert result.exit_code == 0
     assert "Darwin status: ok" in result.stdout
@@ -70,6 +76,50 @@ def test_research_cli_help() -> None:
     assert "construct-claim" in result.stdout
     assert "claim" in result.stdout
     assert "synthesize" in result.stdout
+    assert "loop-start" in result.stdout
+    assert "loop-show" in result.stdout
+    assert "loop-events" in result.stdout
+    assert "loop-resume" in result.stdout
+
+
+def test_research_loop_cli_dry_run_smoke(tmp_path, monkeypatch) -> None:
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'darwin-loop.sqlite'}"
+    engine = create_engine(database_url)
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine, expire_on_commit=False)
+
+    monkeypatch.setenv("DARWIN_DATABASE_URL", database_url)
+    monkeypatch.setenv("DARWIN_ARTIFACT_ROOT", str(tmp_path / "artifacts"))
+    get_settings.cache_clear()
+    try:
+        start_result = CliRunner().invoke(
+            app,
+            [
+                "research",
+                "loop-start",
+                "Can the research loop dry run safely?",
+                "--mode",
+                "dry-run",
+            ],
+        )
+        with session_factory() as session:
+            execution = session.query(ResearchLoopExecution).one()
+            execution_id = str(execution.id)
+            assert session.query(ResearchLoopEvent).count() >= 3
+
+        show_result = CliRunner().invoke(app, ["research", "loop-show", execution_id])
+        events_result = CliRunner().invoke(app, ["research", "loop-events", execution_id])
+    finally:
+        get_settings.cache_clear()
+
+    assert start_result.exit_code == 0
+    assert "State: COMPLETED" in start_result.stdout
+    assert "Stop reason: DRY_RUN_COMPLETE" in start_result.stdout
+    assert "Completion: INCOMPLETE" in start_result.stdout
+    assert show_result.exit_code == 0
+    assert "State: COMPLETED" in show_result.stdout
+    assert events_result.exit_code == 0
+    assert "Events:" in events_result.stdout
 
 
 def test_research_acquire_cli_fake_provider(tmp_path, monkeypatch) -> None:

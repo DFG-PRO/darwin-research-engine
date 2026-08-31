@@ -1,0 +1,39 @@
+{
+  "fixture_id": "phase-1.9e-controlled-loop-fake-provider-v1",
+  "question": "Can Darwin execute a bounded controlled research loop without bypassing evidence and claim gates?",
+  "objective": "Exercise the end-to-end loop with deterministic fake providers and explicit bounded budgets.",
+  "scope": "Fake-provider regression case covering planning, acquisition, content, evidence, claims, validation, completion, narrative synthesis, and report publication.",
+  "assumptions": [
+    "Fake providers are the deterministic benchmark authority.",
+    "No live external credentials are required."
+  ],
+  "mode": "AUTO_GROUNDED",
+  "publish_report": true,
+  "budgets": {
+    "max_iterations": 1,
+    "max_searches": 1,
+    "max_sources": 3,
+    "max_fetched_sources": 2,
+    "max_segments": 3,
+    "max_evidence_candidates": 3,
+    "max_accepted_evidence": 2,
+    "max_claim_candidates": 2,
+    "max_accepted_claims": 2,
+    "max_provider_calls": 12,
+    "max_runtime_seconds": 30
+  },
+  "expected": {
+    "state": "COMPLETED",
+    "stop_reason": "SUCCESS_COMPLETE",
+    "completion_assessment": "COMPLETE",
+    "iterations": 1,
+    "queries": 1,
+    "sources": 1,
+    "accepted_evidence": 1,
+    "accepted_claims": 1,
+    "validation_distribution": {
+      "SUPPORTED": 1
+    },
+    "minimum_events": 15
+  }
+}

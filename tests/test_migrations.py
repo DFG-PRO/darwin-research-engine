@@ -9,7 +9,7 @@ def test_alembic_script_directory_loads_revision() -> None:
     config = Config("alembic.ini")
     script = ScriptDirectory.from_config(config)
 
-    assert script.get_current_head() == "0010_narrative_synthesis"
+    assert script.get_current_head() == "0011_research_loop"
 
 
 def test_alembic_offline_upgrade_compiles(capsys) -> None:
@@ -45,6 +45,9 @@ def test_alembic_offline_upgrade_compiles(capsys) -> None:
     assert "CREATE TABLE narrative_synthesis_proposals" in captured.out
     assert "CREATE TABLE narrative_synthesis_findings" in captured.out
     assert "CREATE TABLE narrative_research_reports" in captured.out
+    assert "CREATE TABLE research_loop_executions" in captured.out
+    assert "CREATE TABLE research_loop_events" in captured.out
+    assert "CREATE TABLE research_loop_queries" in captured.out
     assert "COMMIT;" in captured.out
 
 
@@ -136,6 +139,21 @@ def test_alembic_offline_downgrade_narrative_synthesis_revision_compiles(capsys)
     assert "DROP TABLE narrative_synthesis_requests" in captured.out
 
 
+def test_alembic_offline_downgrade_research_loop_revision_compiles(capsys) -> None:
+    config = Config("alembic.ini")
+
+    command.downgrade(
+        config,
+        "0011_research_loop:0010_narrative_synthesis",
+        sql=True,
+    )
+
+    captured = capsys.readouterr()
+    assert "DROP TABLE research_loop_queries" in captured.out
+    assert "DROP TABLE research_loop_events" in captured.out
+    assert "DROP TABLE research_loop_executions" in captured.out
+
+
 def test_alembic_offline_downgrade_source_content_revision_compiles(capsys) -> None:
     config = Config("alembic.ini")
 
@@ -162,3 +180,4 @@ def test_migration_file_exists() -> None:
     assert Path("alembic/versions/0008_assisted_evidence_extraction.py").is_file()
     assert Path("alembic/versions/0009_assisted_claim_construction.py").is_file()
     assert Path("alembic/versions/0010_narrative_synthesis.py").is_file()
+    assert Path("alembic/versions/0011_research_loop.py").is_file()
