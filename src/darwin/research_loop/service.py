@@ -388,6 +388,7 @@ class ResearchLoopController:
                 linked_object_ids={"acquisition_request_id": str(result.acquisition_id)},
             )
 
+        source_ids = list(dict.fromkeys(source_ids))
         if not source_ids:
             self._stop(
                 execution,

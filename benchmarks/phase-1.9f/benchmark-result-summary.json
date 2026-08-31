@@ -1,0 +1,100 @@
+{
+  "benchmark_mode": "SUPPLIED_MATERIAL_OPERATIONAL_BENCHMARK",
+  "budgets": {
+    "max_accepted_claims": 10,
+    "max_accepted_evidence": 10,
+    "max_claim_candidates": 10,
+    "max_cost": null,
+    "max_evidence_candidates": 20,
+    "max_fetched_sources": 10,
+    "max_iterations": 2,
+    "max_provider_calls": 130,
+    "max_runtime_seconds": 90.0,
+    "max_searches": 10,
+    "max_segments": 20,
+    "max_sources": 20,
+    "max_tokens": null
+  },
+  "contradictions": [],
+  "counters": {
+    "accepted_claims": 10,
+    "accepted_evidence": 10,
+    "claim_proposals": 10,
+    "content_fetches": 10,
+    "cost": 0.0,
+    "evidence_proposals": 10,
+    "iterations": 1,
+    "provider_calls": 113,
+    "searches": 10,
+    "segments_processed": 10,
+    "source_candidates": 10,
+    "sources_registered": 10,
+    "tokens": 0
+  },
+  "errors": [],
+  "execution_date": "2026-08-31",
+  "gaps": [],
+  "method_version": "controlled-research-loop-1.9e",
+  "metrics": {
+    "accepted_claims": 10,
+    "accepted_evidence": 10,
+    "claim_candidates": 10,
+    "claim_evidence_links": 10,
+    "claims": 10,
+    "events": 165,
+    "evidence_candidates": 10,
+    "fetch_attempts": 10,
+    "narrative_findings": 13,
+    "plan_items": 10,
+    "queries": 10,
+    "required_plan_items": 10,
+    "runtime_seconds": 0.567,
+    "satisfied_plan_items": 10,
+    "searches": 10,
+    "segments": 10,
+    "source_candidates": 10,
+    "sources": 10,
+    "stage_transitions": 8,
+    "successful_snapshots": 10,
+    "valid_grounded_evidence_candidates": 10
+  },
+  "provenance_audit": {
+    "claim_evidence_links_complete": true,
+    "evidence_snapshot_segment_provenance_complete": true,
+    "exact_grounding_verified": true
+  },
+  "providers": {
+    "acquisition": "phase-1.9f-supplied-acquisition",
+    "claims": "phase-1.9f-supplied-claims/supplied-material-claim-v1",
+    "content": "phase-1.9f-supplied-fetch",
+    "evidence": "phase-1.9f-supplied-evidence/supplied-material-evidence-v1",
+    "planning": "phase-1.9f-supplied-planner/supplied-material-planner-v1",
+    "synthesis": "fake/fake-narrative-synthesis-v1"
+  },
+  "question": "Is cross-exchange spot arbitrage practically viable in 2026 for a retail operator with approximately USD 5,000 in capital after realistic trading fees, executable spreads, slippage, transfer constraints, capital fragmentation, rebalancing, API limitations, and operational risk?",
+  "result": {
+    "completion_assessment": "COMPLETE",
+    "iterations": 1,
+    "report_artifact_verified": true,
+    "report_published": true,
+    "state": "COMPLETED",
+    "stop_reason": "SUCCESS_COMPLETE"
+  },
+  "source_independence_audit": {
+    "false_corroboration_detected": false,
+    "note": "No claim was elevated to CORROBORATED in this supplied-material run.",
+    "publisher_distribution": {
+      "Supplied Exchange API Documentation": 1,
+      "Supplied Exchange Fee Documentation": 1,
+      "Supplied Exchange Funding Documentation": 2,
+      "Supplied Market Microstructure Notes": 2,
+      "Supplied Operational Risk Notes": 1,
+      "Supplied Retail Operations Analysis": 2,
+      "Supplied Retail Viability Analysis": 1
+    }
+  },
+  "validation_distribution": {
+    "SUPPORTED": 10
+  },
+  "warnings": []
+}

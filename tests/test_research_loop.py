@@ -5,6 +5,7 @@ import pytest
 from pydantic import ValidationError
 from sqlalchemy import func, select
 
+from darwin.acquisition.schemas import ProviderSearchResult, ProviderSourceCandidate
 from darwin.claim_assistance import AssistedClaimConstructionService
 from darwin.config import Settings
 from darwin.db.models import (
@@ -25,9 +26,17 @@ from darwin.db.models import (
     ResearchLoopQuery,
     ResearchLoopState,
     ResearchLoopStopReason,
+    ResearchPlanPriority,
     SourceContentSnapshot,
+    SourceType,
+    utc_now,
 )
 from darwin.extraction import AssistedEvidenceExtractionService
+from darwin.planning.schemas import (
+    PlanningProviderResult,
+    ProviderPlanProposal,
+    ResearchPlanItemProposal,
+)
 from darwin.research_loop import (
     ResearchLoopBudgets,
     ResearchLoopController,
@@ -249,6 +258,111 @@ def test_no_fetch_budget_stops_without_canonical_evidence_or_claims(
         }
         assert count(session, Evidence) == 0
         assert count(session, Claim) == 0
+
+
+def test_loop_deduplicates_registered_sources_before_fetching(session_factory, tmp_path) -> None:
+    class TwoItemPlanningProvider:
+        identifier = "two-item-fake"
+
+        def generate_plan(self, request, limits):
+            proposal = ProviderPlanProposal(
+                normalized_research_question=request.research_question,
+                proposed_objective="Verify duplicate source handling.",
+                proposed_scope="Two required items intentionally discover the same source.",
+                proposed_research_categories=["fees", "operations"],
+                expected_evidence_types=["official documentation"],
+                suggested_source_types=[SourceType.WEB_PAGE],
+                tasks=[
+                    ResearchPlanItemProposal(
+                        item_key="fees",
+                        requirement="Find fee evidence.",
+                        category="fees",
+                        priority=ResearchPlanPriority.HIGH,
+                        required=True,
+                        expected_source_type=SourceType.WEB_PAGE,
+                        expected_evidence_types=["fee documentation"],
+                        suggested_source_types=[SourceType.WEB_PAGE],
+                        completion_criteria=["Fee evidence is present."],
+                    ),
+                    ResearchPlanItemProposal(
+                        item_key="operations",
+                        requirement="Find operational evidence.",
+                        category="operations",
+                        priority=ResearchPlanPriority.HIGH,
+                        required=True,
+                        expected_source_type=SourceType.WEB_PAGE,
+                        expected_evidence_types=["operational documentation"],
+                        suggested_source_types=[SourceType.WEB_PAGE],
+                        completion_criteria=["Operational evidence is present."],
+                    ),
+                ],
+                method_version="test",
+                schema_version="test",
+            )
+            return PlanningProviderResult(
+                provider_id=self.identifier,
+                provider_model="test",
+                proposal=proposal,
+                created_at=utc_now(),
+            )
+
+    class DuplicateSourceProvider:
+        identifier = "duplicate-source-fake"
+
+        def search(self, request):
+            return ProviderSearchResult(
+                provider_id=self.identifier,
+                original_query=request.query,
+                candidates=[
+                    ProviderSourceCandidate(
+                        canonical_locator="https://example.com/duplicate-loop-source",
+                        title="Duplicate loop source",
+                        publisher="Example",
+                        retrieved_at=utc_now(),
+                        source_type=SourceType.WEB_PAGE,
+                        provider_candidate_id="duplicate",
+                    )
+                ],
+            )
+
+    class DuplicateSourceController(ResearchLoopController):
+        def _planning_provider(self, request):
+            return TwoItemPlanningProvider()
+
+        def _acquisition_provider(self, request):
+            return DuplicateSourceProvider()
+
+    app_settings = settings(
+        tmp_path,
+        research_loop_max_searches=2,
+        research_loop_max_sources=2,
+        research_loop_max_fetched_sources=2,
+        research_loop_max_segments=2,
+        research_loop_max_evidence_candidates=2,
+        research_loop_max_accepted_evidence=2,
+        research_loop_max_provider_calls=10,
+        research_planning_max_required_plan_items=2,
+        research_planning_max_categories=2,
+    )
+    request = loop_request(
+        budgets=ResearchLoopBudgets(
+            max_searches=2,
+            max_sources=2,
+            max_fetched_sources=2,
+            max_segments=2,
+            max_evidence_candidates=2,
+            max_accepted_evidence=2,
+            max_provider_calls=10,
+        )
+    )
+
+    with session_factory() as session:
+        result = DuplicateSourceController(session, app_settings).start(request)
+
+        assert result.counters.searches == 2
+        assert result.counters.sources_registered == 2
+        assert result.counters.content_fetches == 1
+        assert count(session, SourceContentSnapshot) == 1
 
 
 def test_prompt_injection_source_text_is_inert(session_factory, tmp_path) -> None:

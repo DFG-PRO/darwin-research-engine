@@ -2,7 +2,7 @@
 
 Darwin v0.1 is the initial foundation for a research and intelligence engine intended to preserve traceable evidence, validated knowledge, historical context, confidence, outcomes, errors, contradictions, assumptions, and decisions over time.
 
-Current status: **Phase 1.9E controlled live research loop v0.1**. This repository provides the technical base, persistent research schema, lifecycle persistence services, deterministic structural claim validation, a supplied-material research orchestrator, controlled external source discovery, explicit source-content snapshot/segment/evidence extraction, caller-supplied claim construction, evidence-grounded structured synthesis records, a reproducible supplied-material benchmark, a controlled research planning proposal boundary, assisted evidence candidate proposals with explicit acceptance into canonical Evidence, assisted Claim candidate proposals with explicit acceptance into canonical Claims, grounded narrative synthesis proposals with explicit Markdown report publication, and a bounded synchronous research-loop controller that coordinates these capabilities through explicit modes, budgets, events, stop reasons, and resume gates. It does not implement unbounded autonomous research, crawling beyond configured acquisition/fetch providers, semantic claim validation, automatic claim validation from provider output, confidence scoring, recommendation systems, memory retrieval, background research, trading, or domain intelligence features.
+Current status: **Phase 1.9F operational research benchmark and Phase 1.9 closure**. This repository provides the technical base, persistent research schema, lifecycle persistence services, deterministic structural claim validation, a supplied-material research orchestrator, controlled external source discovery, explicit source-content snapshot/segment/evidence extraction, caller-supplied claim construction, evidence-grounded structured synthesis records, reproducible supplied-material benchmarks, a controlled research planning proposal boundary, assisted evidence candidate proposals with explicit acceptance into canonical Evidence, assisted Claim candidate proposals with explicit acceptance into canonical Claims, grounded narrative synthesis proposals with explicit Markdown report publication, and a bounded synchronous research-loop controller that coordinates these capabilities through explicit modes, budgets, events, stop reasons, and resume gates. It does not implement unbounded autonomous research, crawling beyond configured acquisition/fetch providers, semantic claim validation, automatic claim validation from provider output, confidence scoring, recommendation systems, memory retrieval, background research, trading, or domain intelligence features.
 
 ## What Exists
 
@@ -25,6 +25,7 @@ Current status: **Phase 1.9E controlled live research loop v0.1**. This reposito
 - Narrative synthesis proposals grounded in canonical Claims, validation history, ClaimEvidence provenance, Conclusions, contradictions, and evidence gaps, with explicit publication to Markdown artifacts.
 - Controlled research-loop execution records, append-only loop events, bounded query records, manual gates, auto-grounded acceptance, dry-run mode, stop reasons, and resume for supported waiting states.
 - Phase 1.8I supplied-material Research MVP benchmark artifacts and closure documentation.
+- Phase 1.9F supplied-material operational benchmark, gap register, master documentation, and closure record.
 - Minimal Typer CLI.
 - Deterministic pytest coverage for imports, configuration, CLI, and database foundation setup.
 - Initial documentation directories and ADRs for decisions made in Phase 1.8A.
@@ -245,6 +246,18 @@ Run the Phase 1.9E controlled-loop benchmark fixture:
 
 ```bash
 pytest tests/test_research_loop.py::test_phase_1_9e_deterministic_loop_benchmark_fixture
+```
+
+Run the Phase 1.9F operational benchmark regression:
+
+```bash
+pytest tests/test_phase_1_9f_operational_benchmark.py
+```
+
+Regenerate the Phase 1.9F benchmark result summary:
+
+```bash
+PYTHONPATH=src python benchmarks/phase-1.9f/run_operational_benchmark.py
 ```
 
 Run the benchmark directly:

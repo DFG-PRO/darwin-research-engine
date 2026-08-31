@@ -1,0 +1,87 @@
+{
+  "mode": "SUPPLIED_MATERIAL_OPERATIONAL_BENCHMARK",
+  "question": "Is cross-exchange spot arbitrage practically viable in 2026 for a retail operator with approximately USD 5,000 in capital after realistic trading fees, executable spreads, slippage, transfer constraints, capital fragmentation, rebalancing, API limitations, and operational risk?",
+  "limitation": "Curated supplied materials for operational benchmark execution. They are not live 2026 exchange documentation, not personalized financial advice, and not a recommendation to trade.",
+  "materials": [
+    {
+      "key": "trading-fee-economics",
+      "category": "trading fee economics",
+      "title": "Supplied exchange spot fee schedule",
+      "publisher": "Supplied Exchange Fee Documentation",
+      "locator": "supplied://phase-1.9f/trading-fee-economics",
+      "body": "trading fee economics: A retail spot fee schedule with 0.10% maker and 0.10% taker fees means a two-leg cross-exchange transaction can consume about 0.20% before spread, slippage, withdrawal, and rebalancing costs."
+    },
+    {
+      "key": "executable-spread",
+      "category": "executable spread/opportunity size",
+      "title": "Supplied executable spread note",
+      "publisher": "Supplied Market Microstructure Notes",
+      "locator": "supplied://phase-1.9f/executable-spread",
+      "body": "executable spread/opportunity size: The visible difference between two exchange prices is not the same as executable profit because bid ask spread, order book depth, queue position, and partial fills affect the actual fill price."
+    },
+    {
+      "key": "liquidity-slippage",
+      "category": "liquidity/slippage",
+      "title": "Supplied liquidity and slippage note",
+      "publisher": "Supplied Market Microstructure Notes",
+      "locator": "supplied://phase-1.9f/liquidity-slippage",
+      "body": "liquidity/slippage: Retail order sizing interacts with available order book depth; thin books and fast-moving markets can turn an apparent cross-exchange price gap into slippage or an unfilled leg."
+    },
+    {
+      "key": "withdrawal-costs",
+      "category": "deposit/withdrawal costs",
+      "title": "Supplied withdrawal fee note",
+      "publisher": "Supplied Exchange Funding Documentation",
+      "locator": "supplied://phase-1.9f/withdrawal-costs",
+      "body": "deposit/withdrawal costs: Withdrawal fees, minimum withdrawal amounts, and minimum deposit amounts create fixed costs that matter more when total capital is approximately USD 5,000."
+    },
+    {
+      "key": "transfer-timing",
+      "category": "transfer/deposit timing",
+      "title": "Supplied transfer timing note",
+      "publisher": "Supplied Exchange Funding Documentation",
+      "locator": "supplied://phase-1.9f/transfer-timing",
+      "body": "transfer/deposit timing: Some networks may confirm transfers in minutes under normal conditions, but final exchange crediting can still depend on confirmation thresholds, congestion, compliance checks, wallet maintenance, and venue-specific deposit policy."
+    },
+    {
+      "key": "capital-fragmentation",
+      "category": "pre-funding / capital fragmentation",
+      "title": "Supplied capital fragmentation note",
+      "publisher": "Supplied Retail Operations Analysis",
+      "locator": "supplied://phase-1.9f/capital-fragmentation",
+      "body": "pre-funding / capital fragmentation: Cross-exchange spot arbitrage generally involves pre-funding multiple venues, splitting USD 5,000 into smaller venue balances and limiting practical order size per opportunity."
+    },
+    {
+      "key": "rebalancing-costs",
+      "category": "rebalancing costs",
+      "title": "Supplied rebalancing note",
+      "publisher": "Supplied Retail Operations Analysis",
+      "locator": "supplied://phase-1.9f/rebalancing-costs",
+      "body": "rebalancing costs: One-sided fills and inventory drift require periodic rebalancing across venues, adding transfer costs, timing risk, and idle capital drag to the apparent arbitrage spread."
+    },
+    {
+      "key": "api-execution",
+      "category": "API/execution constraints",
+      "title": "Supplied API execution note",
+      "publisher": "Supplied Exchange API Documentation",
+      "locator": "supplied://phase-1.9f/api-execution",
+      "body": "API/execution constraints: Exchange API rate limits, order throttles, authentication failures, maintenance windows, and temporary trading pauses can prevent reliable execution of both legs of a cross-exchange spot opportunity."
+    },
+    {
+      "key": "operational-risk",
+      "category": "operational/counterparty risks",
+      "title": "Supplied operational risk note",
+      "publisher": "Supplied Operational Risk Notes",
+      "locator": "supplied://phase-1.9f/operational-risk",
+      "body": "operational/counterparty risks: Exchanges can halt withdrawals, change fees, delist assets, restrict accounts, suffer outages, or experience liquidity shocks while capital is split across venues."
+    },
+    {
+      "key": "net-viability",
+      "category": "realistic net viability conditions",
+      "title": "Supplied net viability note",
+      "publisher": "Supplied Retail Viability Analysis",
+      "locator": "supplied://phase-1.9f/net-viability",
+      "body": "realistic net viability conditions: For a USD 5,000 retail operator, practical cross-exchange spot arbitrage is viable only when an executable spread exceeds two-leg trading fees, slippage, withdrawal costs, rebalancing costs, timing risk, and operational failure risk."
+    }
+  ]
+}
