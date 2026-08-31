@@ -19,6 +19,7 @@ from darwin.db.models import (
     EvidenceCandidateProposal,
     NarrativeResearchReport,
     NarrativeSynthesisProposal,
+    ResearchCompletionAssessment,
     ResearchAcquisitionRequest,
     ResearchLoopEvent,
     ResearchLoopExecution,
@@ -40,10 +41,12 @@ from darwin.planning.schemas import (
 from darwin.research_loop import (
     ResearchLoopBudgets,
     ResearchLoopController,
+    ResearchLoopCounters,
     ResearchLoopRequest,
     ResearchLoopValidationError,
     validate_loop_transition,
 )
+from darwin.research import ResearchRunNotFound, ResearchService
 from darwin.validation import ClaimValidationService
 
 
@@ -381,3 +384,105 @@ def test_resume_requires_waiting_state(session_factory, tmp_path) -> None:
         result = ResearchLoopController(session, settings(tmp_path)).start(loop_request())
         with pytest.raises(Exception):
             ResearchLoopController(session, settings(tmp_path)).resume(result.execution_id)
+
+
+def test_loop_list_returns_multiple_execution_summaries_for_research_run(session_factory, tmp_path) -> None:
+    app_settings = settings(tmp_path)
+    with session_factory() as session:
+        research_run = ResearchService(session).create_research_run(
+            title="Loop list run",
+            public_id="LOOP-LIST-RUN",
+            research_method_version="test",
+            darwin_version="test",
+        )
+        first = _persist_loop_execution(session, research_run.id, iteration_count=1)
+        second = _persist_loop_execution(session, research_run.id, iteration_count=2)
+        first_event = _persist_loop_event(session, first, sequence=1, event_type="FIRST")
+        second_event = _persist_loop_event(session, second, sequence=1, event_type="SECOND")
+        _persist_loop_event(session, second, sequence=2, event_type="LATEST")
+
+        before_counts = (
+            count(session, ResearchLoopExecution),
+            count(session, ResearchLoopEvent),
+        )
+        summaries = ResearchLoopController(session, app_settings).list_for_research_run(research_run.id)
+        after_counts = (
+            count(session, ResearchLoopExecution),
+            count(session, ResearchLoopEvent),
+        )
+
+        assert [item.execution_id for item in summaries] == [first.id, second.id]
+        assert summaries[0].research_run_id == research_run.id
+        assert summaries[0].latest_event_at == first_event.created_at
+        assert summaries[1].latest_event_at >= second_event.created_at
+        assert summaries[1].iteration_count == 2
+        assert summaries[1].counters.iterations == 2
+        assert before_counts == after_counts
+
+
+def test_loop_list_returns_empty_for_run_without_executions(session_factory, tmp_path) -> None:
+    with session_factory() as session:
+        research_run = ResearchService(session).create_research_run(
+            title="Empty loop list run",
+            research_method_version="test",
+            darwin_version="test",
+        )
+
+        summaries = ResearchLoopController(session, settings(tmp_path)).list_for_research_run(
+            research_run.public_id
+        )
+
+        assert summaries == []
+
+
+def test_loop_list_rejects_unknown_research_run(session_factory, tmp_path) -> None:
+    with session_factory() as session:
+        with pytest.raises(ResearchRunNotFound):
+            ResearchLoopController(session, settings(tmp_path)).list_for_research_run("missing-run")
+
+
+def _persist_loop_execution(session, research_run_id, *, iteration_count: int) -> ResearchLoopExecution:
+    execution = ResearchLoopExecution(
+        research_run_id=research_run_id,
+        execution_mode=ResearchLoopExecutionMode.AUTO_GROUNDED,
+        state=ResearchLoopState.COMPLETED,
+        current_stage=ResearchLoopState.COMPLETED.value,
+        iteration_count=iteration_count,
+        request_payload={"research_question": "Loop list?"},
+        budget_payload=ResearchLoopBudgets().model_dump(mode="json"),
+        counters=ResearchLoopCounters(iterations=iteration_count, accepted_evidence=1).model_dump(),
+        provider_payload={"planning_provider": "fake"},
+        stop_reason=ResearchLoopStopReason.SUCCESS_COMPLETE,
+        completion_assessment=ResearchCompletionAssessment.COMPLETE,
+        loop_method_version="test",
+        started_at=utc_now(),
+        completed_at=utc_now(),
+    )
+    session.add(execution)
+    session.flush()
+    return execution
+
+
+def _persist_loop_event(
+    session,
+    execution: ResearchLoopExecution,
+    *,
+    sequence: int,
+    event_type: str,
+) -> ResearchLoopEvent:
+    event = ResearchLoopEvent(
+        execution_id=execution.id,
+        sequence=sequence,
+        stage=execution.state,
+        event_type=event_type,
+        status="OK",
+        message=event_type,
+        linked_object_ids={},
+        counters=execution.counters,
+        warnings=[],
+        errors=[],
+        created_at=utc_now(),
+    )
+    session.add(event)
+    session.flush()
+    return event

@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 import uuid
 from collections import Counter
+from datetime import timezone
 
 from pydantic import ValidationError
 from sqlalchemy import func, select
@@ -98,6 +99,7 @@ from darwin.research_loop.schemas import (
     ResearchLoopBudgets,
     ResearchLoopCounters,
     ResearchLoopEventRead,
+    ResearchLoopExecutionSummary,
     ResearchLoopRequest,
     ResearchLoopResult,
 )
@@ -225,6 +227,45 @@ class ResearchLoopController:
                 created_at=row.created_at,
             )
             for row in rows
+        ]
+
+    def list_for_research_run(self, research_run_id: uuid.UUID | str) -> list[ResearchLoopExecutionSummary]:
+        """Return persisted loop execution summaries for one ResearchRun."""
+
+        research_run = self.research_service.get_research_run(research_run_id)
+        latest_event = (
+            select(
+                ResearchLoopEvent.execution_id.label("execution_id"),
+                func.max(ResearchLoopEvent.created_at).label("latest_event_at"),
+            )
+            .group_by(ResearchLoopEvent.execution_id)
+            .subquery()
+        )
+        rows = self.session.execute(
+            select(ResearchLoopExecution, latest_event.c.latest_event_at)
+            .outerjoin(latest_event, latest_event.c.execution_id == ResearchLoopExecution.id)
+            .where(ResearchLoopExecution.research_run_id == research_run.id)
+            .order_by(ResearchLoopExecution.created_at, ResearchLoopExecution.id)
+        ).all()
+        return [
+            ResearchLoopExecutionSummary(
+                execution_id=row.id,
+                research_run_id=row.research_run_id,
+                execution_mode=row.execution_mode,
+                state=row.state,
+                current_stage=row.current_stage,
+                stop_reason=row.stop_reason,
+                completion_assessment=row.completion_assessment,
+                iteration_count=row.iteration_count,
+                counters=ResearchLoopCounters.model_validate(row.counters),
+                synthesis_proposal_id=row.narrative_synthesis_proposal_id,
+                report_id=row.narrative_report_id,
+                latest_event_at=_utc_datetime(latest_event_at),
+                started_at=row.started_at,
+                completed_at=row.completed_at,
+                updated_at=row.updated_at,
+            )
+            for row, latest_event_at in rows
         ]
 
     def _run_from_start(self, execution: ResearchLoopExecution, request: ResearchLoopRequest) -> None:
@@ -1129,6 +1170,12 @@ def _provider_payload(request: ResearchLoopRequest) -> dict[str, str]:
         "claim_construction_provider": request.claim_construction_provider,
         "synthesis_provider": request.synthesis_provider,
     }
+
+
+def _utc_datetime(value):
+    if value is not None and value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
 
 
 def _budget_limit(budgets: ResearchLoopBudgets, counter: str) -> int:

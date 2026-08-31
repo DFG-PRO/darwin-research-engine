@@ -11,6 +11,7 @@ from darwin.research_loop.schemas import (
     ResearchLoopBudgets,
     ResearchLoopCounters,
     ResearchLoopEventRead,
+    ResearchLoopExecutionSummary,
     ResearchLoopRequest,
     ResearchLoopResult,
 )
@@ -23,6 +24,7 @@ __all__ = [
     "ResearchLoopCounters",
     "ResearchLoopError",
     "ResearchLoopEventRead",
+    "ResearchLoopExecutionSummary",
     "ResearchLoopIntegrityError",
     "ResearchLoopRequest",
     "ResearchLoopResult",

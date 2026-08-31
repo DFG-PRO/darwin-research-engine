@@ -13,8 +13,12 @@ from darwin.db.models import (
     Evidence,
     EvidenceType,
     EvidenceCandidateProposal,
+    ResearchCompletionAssessment,
     ResearchLoopEvent,
     ResearchLoopExecution,
+    ResearchLoopExecutionMode,
+    ResearchLoopState,
+    ResearchLoopStopReason,
     ResearchPlanItem,
     ResearchPlanItemStatus,
     ResearchPlanPriority,
@@ -79,6 +83,7 @@ def test_research_cli_help() -> None:
     assert "loop-start" in result.stdout
     assert "loop-show" in result.stdout
     assert "loop-events" in result.stdout
+    assert "loop-list" in result.stdout
     assert "loop-resume" in result.stdout
 
 
@@ -120,6 +125,73 @@ def test_research_loop_cli_dry_run_smoke(tmp_path, monkeypatch) -> None:
     assert "State: COMPLETED" in show_result.stdout
     assert events_result.exit_code == 0
     assert "Events:" in events_result.stdout
+
+
+def test_research_loop_cli_lists_executions_for_research_run(tmp_path, monkeypatch) -> None:
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'darwin-loop-list.sqlite'}"
+    engine = create_engine(database_url)
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine, expire_on_commit=False)
+    with session_factory() as session:
+        research_run = ResearchService(session).create_research_run(
+            title="CLI loop list run",
+            public_id="CLI-LOOP-LIST",
+            research_method_version="0.1.0",
+            darwin_version="0.1.0",
+        )
+        execution = ResearchLoopExecution(
+            research_run_id=research_run.id,
+            execution_mode=ResearchLoopExecutionMode.DRY_RUN,
+            state=ResearchLoopState.COMPLETED,
+            current_stage=ResearchLoopState.COMPLETED.value,
+            iteration_count=0,
+            request_payload={"research_question": "CLI loop list?"},
+            budget_payload={},
+            counters={"iterations": 0, "searches": 0, "accepted_evidence": 0, "accepted_claims": 0},
+            provider_payload={},
+            stop_reason=ResearchLoopStopReason.DRY_RUN_COMPLETE,
+            completion_assessment=ResearchCompletionAssessment.INCOMPLETE,
+            loop_method_version="test",
+        )
+        session.add(execution)
+        session.flush()
+        session.add(
+            ResearchLoopEvent(
+                execution_id=execution.id,
+                sequence=1,
+                stage=ResearchLoopState.COMPLETED,
+                event_type="DRY_RUN",
+                status="OK",
+                message="Dry run complete.",
+                linked_object_ids={},
+                counters={},
+                warnings=[],
+                errors=[],
+            )
+        )
+        session.commit()
+
+    monkeypatch.setenv("DARWIN_DATABASE_URL", database_url)
+    get_settings.cache_clear()
+    try:
+        result = CliRunner().invoke(
+            app,
+            ["research", "loop-list", "--research-run-id", "CLI-LOOP-LIST"],
+        )
+        missing = CliRunner().invoke(
+            app,
+            ["research", "loop-list", "--research-run-id", "MISSING-RUN"],
+        )
+    finally:
+        get_settings.cache_clear()
+
+    assert result.exit_code == 0
+    assert "Loop executions: 1" in result.stdout
+    assert f"Execution: {execution.id}" in result.stdout
+    assert "Mode: DRY_RUN" in result.stdout
+    assert "Latest event:" in result.stdout
+    assert missing.exit_code == 1
+    assert "Research loop list failed: Research run not found: MISSING-RUN" in missing.stdout
 
 
 def test_research_acquire_cli_fake_provider(tmp_path, monkeypatch) -> None:
