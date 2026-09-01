@@ -125,3 +125,21 @@ class ResearchRecordRead(BaseModel):
     claims: list[ClaimRead]
     claim_evidence: list[ClaimEvidenceRead]
     conclusions: list[ConclusionRead]
+
+
+class ResearchRecordExportSummaryRead(BaseModel):
+    """Aggregate counts included in a research record export."""
+
+    source_count: int
+    evidence_count: int
+    claim_count: int
+    claim_evidence_count: int
+    conclusion_count: int
+
+
+class ResearchRecordExportRead(ResearchRecordRead):
+    """JSON export envelope for one traceable research record."""
+
+    schema_version: str = "research-record-export.v1"
+    exported_at: datetime
+    summary: ResearchRecordExportSummaryRead

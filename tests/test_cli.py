@@ -1,3 +1,5 @@
+import json
+
 from typer.testing import CliRunner
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -9,7 +11,9 @@ from darwin.db.models import (
     Claim,
     ClaimCandidateProposal,
     ClaimEvidence,
+    ClaimEvidenceRelation,
     ClaimValidationEvaluation,
+    ConclusionStatus,
     Evidence,
     EvidenceType,
     EvidenceCandidateProposal,
@@ -60,6 +64,7 @@ def test_research_cli_help() -> None:
     assert "Research run persistence smoke commands" in result.stdout
     assert "create-run" in result.stdout
     assert "get-run" in result.stdout
+    assert "export-run" in result.stdout
     assert "list-runs" in result.stdout
     assert "validate-claim" in result.stdout
     assert "run-manual" in result.stdout
@@ -180,6 +185,77 @@ def test_research_cli_lists_runs_with_status_filter(tmp_path, monkeypatch) -> No
     assert "CLI-HIDDEN" not in result.stdout
     assert invalid.exit_code == 1
     assert "Unsupported research run status" in invalid.stdout
+
+
+def test_research_cli_exports_run_to_stdout_and_file(tmp_path, monkeypatch) -> None:
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'darwin-export-run.sqlite'}"
+    engine = create_engine(database_url)
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine, expire_on_commit=False)
+    with session_factory() as session:
+        service = ResearchService(session)
+        research_run = service.create_research_run(
+            title="CLI export run",
+            public_id="CLI-EXPORT",
+            research_method_version="0.1.0",
+            darwin_version="0.1.0",
+        )
+        source = service.register_source(
+            source_type=SourceType.WEB_PAGE,
+            canonical_locator="https://example.com/cli-export",
+        )
+        evidence = service.register_evidence(
+            research_run_id=research_run.id,
+            source_id=source.id,
+            evidence_type=EvidenceType.EXCERPT,
+            statement="CLI export includes evidence.",
+        )
+        claim = service.register_claim(
+            research_run_id=research_run.id,
+            statement="CLI export preserves claim links.",
+        )
+        service.link_claim_evidence(
+            claim_id=claim.id,
+            evidence_id=evidence.id,
+            relation=ClaimEvidenceRelation.SUPPORTS,
+        )
+        service.register_conclusion(
+            research_run_id=research_run.id,
+            statement="CLI export includes conclusions.",
+            status=ConclusionStatus.DRAFT,
+        )
+        session.commit()
+
+    output_path = tmp_path / "export.json"
+    monkeypatch.setenv("DARWIN_DATABASE_URL", database_url)
+    get_settings.cache_clear()
+    try:
+        stdout_result = CliRunner().invoke(app, ["research", "export-run", "CLI-EXPORT"])
+        file_result = CliRunner().invoke(
+            app,
+            ["research", "export-run", "CLI-EXPORT", "--output", str(output_path)],
+        )
+        missing_result = CliRunner().invoke(app, ["research", "export-run", "MISSING"])
+    finally:
+        get_settings.cache_clear()
+
+    assert stdout_result.exit_code == 0
+    stdout_payload = json.loads(stdout_result.stdout)
+    assert stdout_payload["schema_version"] == "research-record-export.v1"
+    assert stdout_payload["research_run"]["public_id"] == "CLI-EXPORT"
+    assert stdout_payload["summary"] == {
+        "source_count": 1,
+        "evidence_count": 1,
+        "claim_count": 1,
+        "claim_evidence_count": 1,
+        "conclusion_count": 1,
+    }
+    assert file_result.exit_code == 0
+    assert f"Research record export written: {output_path}" in file_result.stdout
+    file_payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert file_payload["research_run"]["public_id"] == "CLI-EXPORT"
+    assert missing_result.exit_code == 1
+    assert "Research run not found: MISSING" in missing_result.stdout
 
 
 def test_research_loop_cli_lists_executions_for_research_run(tmp_path, monkeypatch) -> None:

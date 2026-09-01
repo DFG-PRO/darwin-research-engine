@@ -39,6 +39,8 @@ from darwin.research.schemas import (
     ClaimRead,
     ConclusionRead,
     EvidenceRead,
+    ResearchRecordExportRead,
+    ResearchRecordExportSummaryRead,
     ResearchRecordRead,
     ResearchRunRead,
     ResearchRunSummaryRead,
@@ -399,6 +401,27 @@ class ResearchService:
                 ConclusionRead.model_validate(conclusion)
                 for conclusion in research_run.conclusions
             ],
+        )
+
+    def export_research_record(self, identifier: uuid.UUID | str) -> ResearchRecordExportRead:
+        """Return a JSON-ready export envelope for one research record."""
+
+        record = self.get_research_record(identifier)
+        return ResearchRecordExportRead(
+            research_run=record.research_run,
+            sources=record.sources,
+            evidence=record.evidence,
+            claims=record.claims,
+            claim_evidence=record.claim_evidence,
+            conclusions=record.conclusions,
+            exported_at=utc_now(),
+            summary=ResearchRecordExportSummaryRead(
+                source_count=len(record.sources),
+                evidence_count=len(record.evidence),
+                claim_count=len(record.claims),
+                claim_evidence_count=len(record.claim_evidence),
+                conclusion_count=len(record.conclusions),
+            ),
         )
 
     def _find_research_run(

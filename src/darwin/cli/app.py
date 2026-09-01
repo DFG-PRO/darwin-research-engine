@@ -205,6 +205,33 @@ def list_research_runs(
         raise typer.Exit(code=1) from exc
 
 
+@research_app.command("export-run")
+def export_research_run(
+    identifier: str = typer.Argument(..., help="Research run UUID or public ID."),
+    output: Path | None = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Optional path for the JSON export. Prints to stdout when omitted.",
+    ),
+) -> None:
+    """Export one persisted research record as JSON."""
+
+    settings = get_settings()
+    try:
+        with session_scope(settings) as session:
+            export = ResearchService(session).export_research_record(identifier)
+            payload = export.model_dump_json(indent=2)
+        if output is None:
+            typer.echo(payload)
+        else:
+            output.write_text(f"{payload}\n", encoding="utf-8")
+            typer.echo(f"Research record export written: {output}")
+    except (OSError, ResearchServiceError, SQLAlchemyError) as exc:
+        typer.echo(f"Research command failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
 @research_app.command("validate-claim")
 def validate_claim(claim_id: str = typer.Argument(..., help="Claim UUID to validate structurally.")) -> None:
     """Validate a claim's structural evidentiary state."""

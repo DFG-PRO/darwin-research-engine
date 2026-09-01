@@ -91,6 +91,21 @@ Implemented structural rules:
 
 Traceability is preserved through explicit IDs and relationship records.
 
+## Export Behavior
+
+`export_research_record` returns a JSON-ready envelope for one research run. The
+envelope includes a schema version, export timestamp, the assembled research
+record, and summary counts for sources, evidence, claims, claim/evidence links,
+and conclusions. The export path reuses `get_research_record` and does not add a
+database mutation, schema migration, or dependency.
+
+CLI usage:
+
+```shell
+darwin research export-run rrn_example
+darwin research export-run rrn_example --output export.json
+```
+
 ## Listing Behavior
 
 `list_research_runs` returns read-only `ResearchRun` summaries ordered by latest update first.

@@ -432,6 +432,61 @@ def test_list_research_runs_filters_status_and_validates_input(session_factory) 
             service.list_research_runs(limit=0)
 
 
+def test_export_research_record_returns_envelope_counts_and_does_not_mutate(
+    session_factory,
+) -> None:
+    with session_factory() as session:
+        service = ResearchService(session)
+        research_run = service.create_research_run(
+            title="Export test",
+            public_id="rrn_export",
+            research_method_version="0.1.0",
+            darwin_version="0.1.0",
+        )
+        source = service.register_source(
+            source_type=SourceType.WEB_PAGE,
+            canonical_locator="https://example.com/export",
+        )
+        evidence = service.register_evidence(
+            research_run_id=research_run.id,
+            source_id=source.id,
+            evidence_type=EvidenceType.EXCERPT,
+            statement="Exported evidence remains traceable.",
+        )
+        claim = service.register_claim(
+            research_run_id=research_run.id,
+            statement="Research exports are traceable.",
+        )
+        service.link_claim_evidence(
+            claim_id=claim.id,
+            evidence_id=evidence.id,
+            relation=ClaimEvidenceRelation.SUPPORTS,
+        )
+        service.register_conclusion(
+            research_run_id=research_run.id,
+            statement="The export envelope includes conclusions.",
+            status=ConclusionStatus.DRAFT,
+        )
+        run_count_before = session.scalar(select(func.count()).select_from(ResearchRun))
+
+        exported = service.export_research_record("rrn_export")
+        run_count_after = session.scalar(select(func.count()).select_from(ResearchRun))
+
+        assert exported.schema_version == "research-record-export.v1"
+        assert exported.exported_at is not None
+        assert exported.research_run.id == research_run.id
+        assert exported.sources[0].id == source.id
+        assert exported.evidence[0].id == evidence.id
+        assert exported.claims[0].id == claim.id
+        assert exported.conclusions[0].research_run_id == research_run.id
+        assert exported.summary.source_count == 1
+        assert exported.summary.evidence_count == 1
+        assert exported.summary.claim_count == 1
+        assert exported.summary.claim_evidence_count == 1
+        assert exported.summary.conclusion_count == 1
+        assert run_count_after == run_count_before
+
+
 def test_failed_transaction_does_not_leave_partial_research_run(session_factory) -> None:
     with pytest.raises(InvalidResearchRelationship):
         with session_factory.begin() as session:
