@@ -487,6 +487,115 @@ def test_export_research_record_returns_envelope_counts_and_does_not_mutate(
         assert run_count_after == run_count_before
 
 
+def test_research_record_integrity_report_identifies_healthy_record_without_mutation(
+    session_factory,
+) -> None:
+    with session_factory() as session:
+        service = ResearchService(session)
+        research_run = service.create_research_run(
+            title="Integrity healthy test",
+            public_id="rrn_integrity_healthy",
+            research_method_version="0.1.0",
+            darwin_version="0.1.0",
+        )
+        source = service.register_source(
+            source_type=SourceType.WEB_PAGE,
+            canonical_locator="https://example.com/integrity-healthy",
+        )
+        evidence = service.register_evidence(
+            research_run_id=research_run.id,
+            source_id=source.id,
+            evidence_type=EvidenceType.EXCERPT,
+            statement="Integrity report evidence is linked.",
+        )
+        claim = service.register_claim(
+            research_run_id=research_run.id,
+            statement="Integrity report can identify healthy records.",
+        )
+        service.link_claim_evidence(
+            claim_id=claim.id,
+            evidence_id=evidence.id,
+            relation=ClaimEvidenceRelation.SUPPORTS,
+        )
+        service.register_conclusion(
+            research_run_id=research_run.id,
+            statement="The record is structurally complete.",
+            status=ConclusionStatus.DRAFT,
+        )
+        run_count_before = session.scalar(select(func.count()).select_from(ResearchRun))
+
+        report = service.report_research_record_integrity("rrn_integrity_healthy")
+        run_count_after = session.scalar(select(func.count()).select_from(ResearchRun))
+
+        assert report.schema_version == "research-record-integrity-report.v1"
+        assert report.healthy is True
+        assert report.issues == []
+        assert report.summary.source_count == 1
+        assert report.summary.evidence_count == 1
+        assert report.summary.claim_count == 1
+        assert report.summary.claim_evidence_count == 1
+        assert report.summary.conclusion_count == 1
+        assert report.summary.issue_count == 0
+        assert run_count_after == run_count_before
+
+
+def test_research_record_integrity_report_flags_traceability_gaps_and_filters(
+    session_factory,
+) -> None:
+    with session_factory() as session:
+        service = ResearchService(session)
+        research_run = service.create_research_run(
+            title="Integrity gap test",
+            public_id="rrn_integrity_gaps",
+            research_method_version="0.1.0",
+            darwin_version="0.1.0",
+        )
+        source = service.register_source(
+            source_type=SourceType.WEB_PAGE,
+            canonical_locator="https://example.com/integrity-gaps",
+        )
+        service.register_evidence(
+            research_run_id=research_run.id,
+            source_id=source.id,
+            evidence_type=EvidenceType.EXCERPT,
+            statement="Unlinked evidence should be visible.",
+        )
+        service.register_claim(
+            research_run_id=research_run.id,
+            statement="Unlinked claim should be visible.",
+        )
+
+        report = service.report_research_record_integrity(
+            "rrn_integrity_gaps",
+            min_supporting_sources=2,
+        )
+        warnings = service.report_research_record_integrity(
+            "rrn_integrity_gaps",
+            min_supporting_sources=2,
+            severity="warning",
+        )
+
+        assert report.healthy is False
+        assert [issue.code for issue in report.issues] == [
+            "CLAIM_WITHOUT_EVIDENCE",
+            "EVIDENCE_WITHOUT_CLAIM",
+            "LOW_SUPPORTING_SOURCE_DIVERSITY",
+            "NO_CONCLUSIONS",
+        ]
+        assert report.summary.error_count == 1
+        assert report.summary.warning_count == 2
+        assert report.summary.info_count == 1
+        assert [issue.severity for issue in warnings.issues] == ["WARNING", "WARNING"]
+        assert [issue.code for issue in warnings.issues] == [
+            "EVIDENCE_WITHOUT_CLAIM",
+            "LOW_SUPPORTING_SOURCE_DIVERSITY",
+        ]
+        with pytest.raises(ValueError, match="Unsupported integrity severity"):
+            service.report_research_record_integrity("rrn_integrity_gaps", severity="critical")
+        with pytest.raises(ValueError, match="Minimum supporting sources"):
+            service.report_research_record_integrity("rrn_integrity_gaps", min_supporting_sources=-1)
+
+
 def test_failed_transaction_does_not_leave_partial_research_run(session_factory) -> None:
     with pytest.raises(InvalidResearchRelationship):
         with session_factory.begin() as session:

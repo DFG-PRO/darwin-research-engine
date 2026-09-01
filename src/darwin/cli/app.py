@@ -232,6 +232,48 @@ def export_research_run(
         raise typer.Exit(code=1) from exc
 
 
+@research_app.command("integrity-report")
+def research_integrity_report(
+    identifier: str = typer.Argument(..., help="Research run UUID or public ID."),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+    severity: str | None = typer.Option(
+        None,
+        help="Optional severity filter: error, warning, or info.",
+    ),
+    min_supporting_sources: int = typer.Option(
+        1,
+        min=0,
+        help="Minimum supporting source count for diversity warning.",
+    ),
+) -> None:
+    """Report structural integrity issues for one persisted research record."""
+
+    normalized_format = output_format.strip().lower()
+    if normalized_format not in {"text", "json"}:
+        typer.echo(f"Research command failed: Unsupported integrity report format: {output_format}")
+        raise typer.Exit(code=1)
+
+    settings = get_settings()
+    try:
+        with session_scope(settings) as session:
+            report = ResearchService(session).report_research_record_integrity(
+                identifier,
+                min_supporting_sources=min_supporting_sources,
+                severity=severity,
+            )
+        if normalized_format == "json":
+            typer.echo(report.model_dump_json(indent=2))
+        else:
+            typer.echo(_format_integrity_report_text(report))
+    except (ValueError, ResearchServiceError, SQLAlchemyError) as exc:
+        typer.echo(f"Research command failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
 @research_app.command("validate-claim")
 def validate_claim(claim_id: str = typer.Argument(..., help="Claim UUID to validate structurally.")) -> None:
     """Validate a claim's structural evidentiary state."""
@@ -259,6 +301,37 @@ def validate_claim(claim_id: str = typer.Argument(..., help="Claim UUID to valid
     except (ClaimValidationError, ResearchServiceError, SQLAlchemyError) as exc:
         typer.echo(f"Validation command failed: {exc}")
         raise typer.Exit(code=1) from exc
+
+
+def _format_integrity_report_text(report) -> str:
+    lines = [
+        f"Research run: {report.research_run.public_id}",
+        f"Status: {report.research_run.status.value}",
+        f"Healthy: {report.healthy}",
+        (
+            "Counts: "
+            f"sources={report.summary.source_count}, "
+            f"evidence={report.summary.evidence_count}, "
+            f"claims={report.summary.claim_count}, "
+            f"claim_evidence={report.summary.claim_evidence_count}, "
+            f"conclusions={report.summary.conclusion_count}"
+        ),
+        (
+            "Issues: "
+            f"errors={report.summary.error_count}, "
+            f"warnings={report.summary.warning_count}, "
+            f"info={report.summary.info_count}"
+        ),
+    ]
+    if report.issues:
+        for issue in report.issues:
+            lines.append(
+                f"- {issue.severity} {issue.code} {issue.subject_type}:{issue.subject_id} "
+                f"{issue.message}"
+            )
+    else:
+        lines.append("- No integrity issues detected.")
+    return "\n".join(lines)
 
 
 @research_app.command("run-manual")

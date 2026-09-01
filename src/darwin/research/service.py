@@ -41,6 +41,9 @@ from darwin.research.schemas import (
     EvidenceRead,
     ResearchRecordExportRead,
     ResearchRecordExportSummaryRead,
+    ResearchRecordIntegrityIssueRead,
+    ResearchRecordIntegrityReportRead,
+    ResearchRecordIntegritySummaryRead,
     ResearchRecordRead,
     ResearchRunRead,
     ResearchRunSummaryRead,
@@ -424,6 +427,50 @@ class ResearchService:
             ),
         )
 
+    def report_research_record_integrity(
+        self,
+        identifier: uuid.UUID | str,
+        *,
+        min_supporting_sources: int = 1,
+        severity: str | None = None,
+    ) -> ResearchRecordIntegrityReportRead:
+        """Return a read-only structural integrity report for one research record."""
+
+        if min_supporting_sources < 0:
+            raise ValueError("Minimum supporting sources must be non-negative")
+        severity_filter = _parse_integrity_severity(severity)
+        record = self.get_research_record(identifier)
+        issues = _integrity_issues(record, min_supporting_sources=min_supporting_sources)
+        if severity_filter is not None:
+            issues = [issue for issue in issues if issue.severity == severity_filter]
+        issues = sorted(
+            issues,
+            key=lambda issue: (
+                _INTEGRITY_SEVERITY_ORDER[issue.severity],
+                issue.code,
+                issue.subject_type,
+                str(issue.subject_id),
+            ),
+        )
+        summary = ResearchRecordIntegritySummaryRead(
+            source_count=len(record.sources),
+            evidence_count=len(record.evidence),
+            claim_count=len(record.claims),
+            claim_evidence_count=len(record.claim_evidence),
+            conclusion_count=len(record.conclusions),
+            issue_count=len(issues),
+            error_count=sum(1 for issue in issues if issue.severity == "ERROR"),
+            warning_count=sum(1 for issue in issues if issue.severity == "WARNING"),
+            info_count=sum(1 for issue in issues if issue.severity == "INFO"),
+        )
+        return ResearchRecordIntegrityReportRead(
+            research_run=record.research_run,
+            generated_at=utc_now(),
+            healthy=summary.error_count == 0 and summary.warning_count == 0,
+            summary=summary,
+            issues=issues,
+        )
+
     def _find_research_run(
         self,
         identifier: uuid.UUID | str,
@@ -502,3 +549,113 @@ class ResearchService:
             return uuid.UUID(identifier)
         except ValueError:
             return None
+
+
+_INTEGRITY_SEVERITIES = {"ERROR", "WARNING", "INFO"}
+_INTEGRITY_SEVERITY_ORDER = {"ERROR": 0, "WARNING": 1, "INFO": 2}
+
+
+def _parse_integrity_severity(severity: str | None) -> str | None:
+    if severity is None:
+        return None
+    normalized = severity.strip().upper()
+    if normalized not in _INTEGRITY_SEVERITIES:
+        valid = ", ".join(sorted(_INTEGRITY_SEVERITIES))
+        raise ValueError(f"Unsupported integrity severity: {severity}. Expected one of: {valid}")
+    return normalized
+
+
+def _integrity_issues(
+    record: ResearchRecordRead,
+    *,
+    min_supporting_sources: int,
+) -> list[ResearchRecordIntegrityIssueRead]:
+    issues: list[ResearchRecordIntegrityIssueRead] = []
+    run_id = record.research_run.id
+    if not record.evidence:
+        issues.append(
+            ResearchRecordIntegrityIssueRead(
+                severity="ERROR",
+                code="NO_EVIDENCE",
+                subject_type="research_run",
+                subject_id=run_id,
+                message="Research run has no evidence.",
+            )
+        )
+    if not record.claims:
+        issues.append(
+            ResearchRecordIntegrityIssueRead(
+                severity="WARNING",
+                code="NO_CLAIMS",
+                subject_type="research_run",
+                subject_id=run_id,
+                message="Research run has no claims.",
+            )
+        )
+    if not record.conclusions:
+        issues.append(
+            ResearchRecordIntegrityIssueRead(
+                severity="INFO",
+                code="NO_CONCLUSIONS",
+                subject_type="research_run",
+                subject_id=run_id,
+                message="Research run has no conclusions.",
+            )
+        )
+
+    linked_claim_ids = {link.claim_id for link in record.claim_evidence}
+    linked_evidence_ids = {link.evidence_id for link in record.claim_evidence}
+    evidence_by_id = {evidence.id: evidence for evidence in record.evidence}
+    supporting_source_ids = {
+        evidence_by_id[link.evidence_id].source_id
+        for link in record.claim_evidence
+        if link.relation is ClaimEvidenceRelation.SUPPORTS and link.evidence_id in evidence_by_id
+    }
+
+    for claim in record.claims:
+        if claim.id not in linked_claim_ids:
+            issues.append(
+                ResearchRecordIntegrityIssueRead(
+                    severity="ERROR",
+                    code="CLAIM_WITHOUT_EVIDENCE",
+                    subject_type="claim",
+                    subject_id=claim.id,
+                    message="Claim has no evidence relationship.",
+                )
+            )
+    for evidence in record.evidence:
+        if evidence.id not in linked_evidence_ids:
+            issues.append(
+                ResearchRecordIntegrityIssueRead(
+                    severity="WARNING",
+                    code="EVIDENCE_WITHOUT_CLAIM",
+                    subject_type="evidence",
+                    subject_id=evidence.id,
+                    message="Evidence is not linked to any claim.",
+                )
+            )
+    if record.conclusions and not record.claims:
+        issues.append(
+            ResearchRecordIntegrityIssueRead(
+                severity="WARNING",
+                code="CONCLUSION_WITHOUT_CLAIMS",
+                subject_type="research_run",
+                subject_id=run_id,
+                message="Research run has conclusions but no claims.",
+            )
+        )
+    if min_supporting_sources and len(supporting_source_ids) < min_supporting_sources:
+        issues.append(
+            ResearchRecordIntegrityIssueRead(
+                severity="WARNING",
+                code="LOW_SUPPORTING_SOURCE_DIVERSITY",
+                subject_type="research_run",
+                subject_id=run_id,
+                message=(
+                    "Research run has "
+                    f"{len(supporting_source_ids)} supporting sources; "
+                    f"minimum requested is {min_supporting_sources}."
+                ),
+            )
+        )
+    return issues

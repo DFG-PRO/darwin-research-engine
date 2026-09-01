@@ -65,6 +65,7 @@ def test_research_cli_help() -> None:
     assert "create-run" in result.stdout
     assert "get-run" in result.stdout
     assert "export-run" in result.stdout
+    assert "integrity-report" in result.stdout
     assert "list-runs" in result.stdout
     assert "validate-claim" in result.stdout
     assert "run-manual" in result.stdout
@@ -256,6 +257,80 @@ def test_research_cli_exports_run_to_stdout_and_file(tmp_path, monkeypatch) -> N
     assert file_payload["research_run"]["public_id"] == "CLI-EXPORT"
     assert missing_result.exit_code == 1
     assert "Research run not found: MISSING" in missing_result.stdout
+
+
+def test_research_cli_reports_integrity_text_json_and_filter(tmp_path, monkeypatch) -> None:
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'darwin-integrity-report.sqlite'}"
+    engine = create_engine(database_url)
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine, expire_on_commit=False)
+    with session_factory() as session:
+        service = ResearchService(session)
+        research_run = service.create_research_run(
+            title="CLI integrity report",
+            public_id="CLI-INTEGRITY",
+            research_method_version="0.1.0",
+            darwin_version="0.1.0",
+        )
+        source = service.register_source(
+            source_type=SourceType.WEB_PAGE,
+            canonical_locator="https://example.com/cli-integrity",
+        )
+        service.register_evidence(
+            research_run_id=research_run.id,
+            source_id=source.id,
+            evidence_type=EvidenceType.EXCERPT,
+            statement="CLI integrity report has unlinked evidence.",
+        )
+        service.register_claim(
+            research_run_id=research_run.id,
+            statement="CLI integrity report has unlinked claim.",
+        )
+        session.commit()
+
+    monkeypatch.setenv("DARWIN_DATABASE_URL", database_url)
+    get_settings.cache_clear()
+    try:
+        text_result = CliRunner().invoke(app, ["research", "integrity-report", "CLI-INTEGRITY"])
+        json_result = CliRunner().invoke(
+            app,
+            ["research", "integrity-report", "CLI-INTEGRITY", "--format", "json"],
+        )
+        filtered_result = CliRunner().invoke(
+            app,
+            [
+                "research",
+                "integrity-report",
+                "CLI-INTEGRITY",
+                "--severity",
+                "error",
+            ],
+        )
+        missing_result = CliRunner().invoke(app, ["research", "integrity-report", "MISSING"])
+        invalid_result = CliRunner().invoke(
+            app,
+            ["research", "integrity-report", "CLI-INTEGRITY", "--format", "xml"],
+        )
+    finally:
+        get_settings.cache_clear()
+
+    assert text_result.exit_code == 0
+    assert "Research run: CLI-INTEGRITY" in text_result.stdout
+    assert "Healthy: False" in text_result.stdout
+    assert "ERROR CLAIM_WITHOUT_EVIDENCE" in text_result.stdout
+    assert "WARNING EVIDENCE_WITHOUT_CLAIM" in text_result.stdout
+    assert json_result.exit_code == 0
+    payload = json.loads(json_result.stdout)
+    assert payload["schema_version"] == "research-record-integrity-report.v1"
+    assert payload["healthy"] is False
+    assert payload["summary"]["issue_count"] == 4
+    assert filtered_result.exit_code == 0
+    assert "ERROR CLAIM_WITHOUT_EVIDENCE" in filtered_result.stdout
+    assert "WARNING EVIDENCE_WITHOUT_CLAIM" not in filtered_result.stdout
+    assert missing_result.exit_code == 1
+    assert "Research run not found: MISSING" in missing_result.stdout
+    assert invalid_result.exit_code == 1
+    assert "Unsupported integrity report format" in invalid_result.stdout
 
 
 def test_research_loop_cli_lists_executions_for_research_run(tmp_path, monkeypatch) -> None:

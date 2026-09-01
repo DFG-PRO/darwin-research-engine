@@ -106,6 +106,37 @@ darwin research export-run rrn_example
 darwin research export-run rrn_example --output export.json
 ```
 
+## Integrity Report Behavior
+
+`report_research_record_integrity` returns a read-only structural report for one
+research run. It reuses `get_research_record`, computes issue counts from the
+assembled read model, and does not write validation rows, research records,
+migrations, dependencies, configuration, or artifacts.
+
+The report is intentionally limited to structural traceability and completeness.
+It can identify conditions such as:
+
+- a run with no Evidence;
+- a run with no Claims;
+- a run with no Conclusions;
+- a Claim with no Evidence relationship;
+- Evidence that is not linked to any Claim;
+- Conclusions without Claims;
+- fewer supporting source relationships than the requested threshold.
+
+The report does not determine truth, score source quality, infer evidence
+semantics, create validation evaluations, synthesize findings, or recommend
+actions.
+
+CLI usage:
+
+```shell
+darwin research integrity-report rrn_example
+darwin research integrity-report rrn_example --format json
+darwin research integrity-report rrn_example --severity warning
+darwin research integrity-report rrn_example --min-supporting-sources 2
+```
+
 ## Listing Behavior
 
 `list_research_runs` returns read-only `ResearchRun` summaries ordered by latest update first.

@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -143,3 +143,41 @@ class ResearchRecordExportRead(ResearchRecordRead):
     schema_version: str = "research-record-export.v1"
     exported_at: datetime
     summary: ResearchRecordExportSummaryRead
+
+
+IntegrityIssueSeverity = Literal["ERROR", "WARNING", "INFO"]
+
+
+class ResearchRecordIntegrityIssueRead(BaseModel):
+    """Structural traceability or completeness issue for one research record."""
+
+    severity: IntegrityIssueSeverity
+    code: str
+    subject_type: str
+    subject_id: uuid.UUID | str
+    message: str
+
+
+class ResearchRecordIntegritySummaryRead(BaseModel):
+    """Aggregate integrity report counters."""
+
+    source_count: int
+    evidence_count: int
+    claim_count: int
+    claim_evidence_count: int
+    conclusion_count: int
+    issue_count: int
+    error_count: int
+    warning_count: int
+    info_count: int
+
+
+class ResearchRecordIntegrityReportRead(BaseModel):
+    """Read-only structural integrity report for one persisted research run."""
+
+    schema_version: str = "research-record-integrity-report.v1"
+    generated_at: datetime
+    research_run: ResearchRunRead
+    healthy: bool
+    summary: ResearchRecordIntegritySummaryRead
+    issues: list[ResearchRecordIntegrityIssueRead]
