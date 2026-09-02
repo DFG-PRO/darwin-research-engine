@@ -66,6 +66,7 @@ def test_research_cli_help() -> None:
     assert "get-run" in result.stdout
     assert "export-run" in result.stdout
     assert "integrity-report" in result.stdout
+    assert "overview" in result.stdout
     assert "list-runs" in result.stdout
     assert "validate-claim" in result.stdout
     assert "run-manual" in result.stdout
@@ -331,6 +332,87 @@ def test_research_cli_reports_integrity_text_json_and_filter(tmp_path, monkeypat
     assert "Research run not found: MISSING" in missing_result.stdout
     assert invalid_result.exit_code == 1
     assert "Unsupported integrity report format" in invalid_result.stdout
+
+
+def test_research_overview_cli_text_json_and_errors(tmp_path, monkeypatch) -> None:
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'darwin-overview.sqlite'}"
+    engine = create_engine(database_url)
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine, expire_on_commit=False)
+    with session_factory() as session:
+        research_run = ResearchService(session).create_research_run(
+            title="CLI overview run",
+            public_id="CLI-OVERVIEW",
+            research_method_version="0.1.0",
+            darwin_version="0.1.0",
+        )
+        execution = ResearchLoopExecution(
+            research_run_id=research_run.id,
+            execution_mode=ResearchLoopExecutionMode.DRY_RUN,
+            state=ResearchLoopState.COMPLETED,
+            current_stage=ResearchLoopState.COMPLETED.value,
+            iteration_count=0,
+            request_payload={"research_question": "CLI overview?"},
+            budget_payload={},
+            counters={
+                "iterations": 0,
+                "searches": 0,
+                "accepted_evidence": 0,
+                "accepted_claims": 0,
+            },
+            provider_payload={},
+            stop_reason=ResearchLoopStopReason.DRY_RUN_COMPLETE,
+            completion_assessment=ResearchCompletionAssessment.INCOMPLETE,
+            loop_method_version="test",
+        )
+        session.add(execution)
+        session.add(
+            ResearchLoopEvent(
+                execution=execution,
+                sequence=1,
+                stage=ResearchLoopState.COMPLETED,
+                event_type="DRY_RUN",
+                status="OK",
+                message="Dry run complete.",
+                linked_object_ids={},
+                counters={},
+                warnings=[],
+                errors=[],
+            )
+        )
+        session.commit()
+
+    monkeypatch.setenv("DARWIN_DATABASE_URL", database_url)
+    get_settings.cache_clear()
+    try:
+        text_result = CliRunner().invoke(app, ["research", "overview", "CLI-OVERVIEW"])
+        json_result = CliRunner().invoke(
+            app,
+            ["research", "overview", "CLI-OVERVIEW", "--format", "json"],
+        )
+        missing_result = CliRunner().invoke(app, ["research", "overview", "MISSING"])
+        invalid_result = CliRunner().invoke(
+            app,
+            ["research", "overview", "CLI-OVERVIEW", "--format", "xml"],
+        )
+    finally:
+        get_settings.cache_clear()
+
+    assert text_result.exit_code == 0
+    assert "Research run: CLI-OVERVIEW" in text_result.stdout
+    assert "Overall state: NEEDS_ATTENTION" in text_result.stdout
+    assert "Loop executions: 1" in text_result.stdout
+    assert "Next action: Review integrity issues" in text_result.stdout
+    assert json_result.exit_code == 0
+    payload = json.loads(json_result.stdout)
+    assert payload["schema_version"] == "research-run-overview.v1"
+    assert payload["research_run"]["public_id"] == "CLI-OVERVIEW"
+    assert payload["loop_count"] == 1
+    assert payload["integrity"]["error_count"] == 1
+    assert missing_result.exit_code == 1
+    assert "Research overview failed: Research run not found: MISSING" in missing_result.stdout
+    assert invalid_result.exit_code == 1
+    assert "Unsupported overview format" in invalid_result.stdout
 
 
 def test_research_loop_cli_lists_executions_for_research_run(tmp_path, monkeypatch) -> None:

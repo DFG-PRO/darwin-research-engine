@@ -64,6 +64,7 @@ from darwin.narrative_synthesis import (
     NarrativeSynthesisValidationError,
     OpenAINarrativeSynthesisProvider,
 )
+from darwin.observability import ResearchRunOverviewService
 from darwin.orchestration import ManualResearchInput, ResearchOrchestrationError, ResearchOrchestrator
 from darwin.planning import (
     FakePlanningProvider,
@@ -274,6 +275,48 @@ def research_integrity_report(
         raise typer.Exit(code=1) from exc
 
 
+@research_app.command("overview")
+def research_run_overview(
+    identifier: str = typer.Argument(..., help="Research run UUID or public ID."),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+    min_supporting_sources: int = typer.Option(
+        1,
+        min=0,
+        help="Minimum supporting source count for integrity diversity warning.",
+    ),
+    include_loops: bool = typer.Option(
+        True,
+        help="Include persisted research loop execution summaries.",
+    ),
+) -> None:
+    """Show one operator-facing health and state overview for a research run."""
+
+    normalized_format = output_format.strip().lower()
+    if normalized_format not in {"text", "json"}:
+        typer.echo(f"Research command failed: Unsupported overview format: {output_format}")
+        raise typer.Exit(code=1)
+
+    settings = get_settings()
+    try:
+        with session_scope(settings) as session:
+            overview = ResearchRunOverviewService(session, settings).overview(
+                identifier,
+                min_supporting_sources=min_supporting_sources,
+                include_loops=include_loops,
+            )
+        if normalized_format == "json":
+            typer.echo(overview.model_dump_json(indent=2))
+        else:
+            typer.echo(_format_overview_text(overview))
+    except (ValueError, ResearchServiceError, ResearchLoopError, SQLAlchemyError) as exc:
+        typer.echo(f"Research overview failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+
 @research_app.command("validate-claim")
 def validate_claim(claim_id: str = typer.Argument(..., help="Claim UUID to validate structurally.")) -> None:
     """Validate a claim's structural evidentiary state."""
@@ -331,6 +374,52 @@ def _format_integrity_report_text(report) -> str:
             )
     else:
         lines.append("- No integrity issues detected.")
+    return "\n".join(lines)
+
+
+def _format_overview_text(overview) -> str:
+    latest_loop = overview.latest_loop
+    lines = [
+        f"Research run: {overview.research_run.public_id}",
+        f"Title: {overview.research_run.title}",
+        f"Status: {overview.research_run.status.value}",
+        f"Overall state: {overview.overall_state}",
+        (
+            "Counts: "
+            f"sources={overview.counts.source_count}, "
+            f"evidence={overview.counts.evidence_count}, "
+            f"claims={overview.counts.claim_count}, "
+            f"claim_evidence={overview.counts.claim_evidence_count}, "
+            f"conclusions={overview.counts.conclusion_count}"
+        ),
+        (
+            "Integrity: "
+            f"healthy={overview.integrity.healthy}, "
+            f"errors={overview.integrity.error_count}, "
+            f"warnings={overview.integrity.warning_count}, "
+            f"info={overview.integrity.info_count}"
+        ),
+        f"Loop executions: {overview.loop_count}",
+    ]
+    if latest_loop is not None:
+        lines.extend(
+            [
+                f"Latest loop: {latest_loop.execution_id}",
+                f"Latest loop state: {latest_loop.state.value}",
+                (
+                    "Latest loop stop reason: "
+                    f"{latest_loop.stop_reason.value if latest_loop.stop_reason else 'n/a'}"
+                ),
+                (
+                    "Latest loop completion: "
+                    f"{latest_loop.completion_assessment.value if latest_loop.completion_assessment else 'n/a'}"
+                ),
+                f"Latest loop updated: {latest_loop.updated_at.isoformat()}",
+            ]
+        )
+    if overview.warnings:
+        lines.append("Warnings: " + ", ".join(overview.warnings))
+    lines.append(f"Next action: {overview.operator_next_action}")
     return "\n".join(lines)
 
 

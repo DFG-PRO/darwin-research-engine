@@ -137,6 +137,35 @@ darwin research integrity-report rrn_example --severity warning
 darwin research integrity-report rrn_example --min-supporting-sources 2
 ```
 
+## Overview Behavior
+
+`ResearchRunOverviewService` provides a read-only operator overview for one
+research run. It composes existing research record retrieval, structural
+integrity reporting, and research loop execution summaries into one result. It
+does not introduce a persistence table, schema migration, dependency,
+background process, dashboard, telemetry collector, or artifact write.
+
+The overview is intended for quick operational inspection. It reports:
+
+- lifecycle status and title;
+- source, evidence, Claim, Claim/evidence, and Conclusion counts;
+- condensed integrity health and issue counts;
+- loop execution count;
+- latest loop state, stop reason, completion assessment, and update time when a
+  loop exists;
+- overview warnings and a next operator action.
+
+CLI usage:
+
+```shell
+darwin research overview rrn_example
+darwin research overview rrn_example --format json
+darwin research overview rrn_example --min-supporting-sources 2
+```
+
+The overview intentionally does not replace `export-run`, `integrity-report`,
+`loop-show`, or `loop-events` when detailed inspection is needed.
+
 ## Listing Behavior
 
 `list_research_runs` returns read-only `ResearchRun` summaries ordered by latest update first.
