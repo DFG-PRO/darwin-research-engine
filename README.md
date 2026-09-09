@@ -4,6 +4,12 @@ Darwin v0.1 is the initial foundation for a research and intelligence engine int
 
 Current status: **Phase 1.9F operational research benchmark and Phase 1.9 closure**. This repository provides the technical base, persistent research schema, lifecycle persistence services, deterministic structural claim validation, a supplied-material research orchestrator, controlled external source discovery, explicit source-content snapshot/segment/evidence extraction, caller-supplied claim construction, evidence-grounded structured synthesis records, reproducible supplied-material benchmarks, a controlled research planning proposal boundary, assisted evidence candidate proposals with explicit acceptance into canonical Evidence, assisted Claim candidate proposals with explicit acceptance into canonical Claims, grounded narrative synthesis proposals with explicit Markdown report publication, and a bounded synchronous research-loop controller that coordinates these capabilities through explicit modes, budgets, events, stop reasons, and resume gates. It does not implement unbounded autonomous research, crawling beyond configured acquisition/fetch providers, semantic claim validation, automatic claim validation from provider output, confidence scoring, recommendation systems, memory retrieval, background research, trading, or domain intelligence features.
 
+Operational handoff update: Darwin now includes a deterministic profitability path
+comparison framework for evaluating existing strategy, Arbitrage, hybrid, and other
+systematic paths with explicit evidence quality and uncertainty. The framework does not
+authorize live-money execution, autonomous trading, exchange credential changes, or
+production deployment.
+
 ## What Exists
 
 - Python 3.12+ project using a `src/` layout.
@@ -24,6 +30,8 @@ Current status: **Phase 1.9F operational research benchmark and Phase 1.9 closur
 - Assisted Claim candidate proposals grounded only in canonical Evidence and explicit acceptance into canonical Claims.
 - Narrative synthesis proposals grounded in canonical Claims, validation history, ClaimEvidence provenance, Conclusions, contradictions, and evidence gaps, with explicit publication to Markdown artifacts.
 - Controlled research-loop execution records, append-only loop events, bounded query records, manual gates, auto-grounded acceptance, dry-run mode, stop reasons, and resume for supported waiting states.
+- Evidence-aware profitability path comparison schemas, service, and read-only CLI for
+  ranking candidate trading-research paths without manufacturing profitability claims.
 - Phase 1.8I supplied-material Research MVP benchmark artifacts and closure documentation.
 - Phase 1.9F supplied-material operational benchmark, gap register, master documentation, and closure record.
 - Minimal Typer CLI.
@@ -204,6 +212,8 @@ darwin research construct-claim claim-input.json
 darwin research claim <claim-uuid>
 darwin research synthesize <run-uuid-or-public-id>
 darwin research run-manual tests/fixtures/manual_research_complete.json
+darwin profitability compare profitability-comparison.json
+darwin profitability compare profitability-comparison.json --format json
 ```
 
 These commands require a configured database and call the service layer directly.
@@ -225,6 +235,11 @@ These commands require a configured database and call the service layer directly
 `darwin research construct-claim` requires a caller-supplied claim statement and explicit evidence selections. Darwin links the claim to evidence, writes a construction audit record, and runs structural validation. It does not infer the claim statement from evidence.
 
 `darwin research claim` shows a persisted claim with evidence/source/snapshot/segment provenance. `darwin research synthesize` creates an append-only structured synthesis record for a research run.
+
+`darwin profitability compare` reads a supplied JSON payload and ranks candidate paths
+against the profitability decision framework. It requires a USD 2,000 capital scenario,
+keeps capital separate from notional exposure and risk, and reports 7-10 percent monthly
+return evidence as `INSUFFICIENT_EVIDENCE` unless validated evidence is supplied.
 
 ## Tests
 

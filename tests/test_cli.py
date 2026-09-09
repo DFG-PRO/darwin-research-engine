@@ -95,6 +95,42 @@ def test_research_cli_help() -> None:
     assert "loop-resume" in result.stdout
 
 
+def test_profitability_cli_help() -> None:
+    result = CliRunner().invoke(app, ["profitability", "--help"])
+
+    assert result.exit_code == 0
+    assert "Evidence-aware profitability comparison commands" in result.stdout
+    assert "compare" in result.stdout
+
+
+def test_profitability_compare_cli_outputs_ranked_json(tmp_path) -> None:
+    input_file = tmp_path / "comparison.json"
+    input_file.write_text(json.dumps(_profitability_payload()), encoding="utf-8")
+
+    result = CliRunner().invoke(
+        app,
+        ["profitability", "compare", str(input_file), "--format", "json"],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["fastest_defensible_path"] == "existing-dashboard-strategy"
+    assert payload["seven_to_ten_percent_monthly_evidence"] == "INSUFFICIENT_EVIDENCE"
+
+
+def test_profitability_compare_cli_rejects_unknown_format(tmp_path) -> None:
+    input_file = tmp_path / "comparison.json"
+    input_file.write_text(json.dumps(_profitability_payload()), encoding="utf-8")
+
+    result = CliRunner().invoke(
+        app,
+        ["profitability", "compare", str(input_file), "--format", "yaml"],
+    )
+
+    assert result.exit_code == 1
+    assert "Unsupported output format" in result.stdout
+
+
 def test_research_loop_cli_dry_run_smoke(tmp_path, monkeypatch) -> None:
     database_url = f"sqlite+pysqlite:///{tmp_path / 'darwin-loop.sqlite'}"
     engine = create_engine(database_url)
@@ -845,3 +881,90 @@ def test_assisted_claim_cli_propose_list_accept(tmp_path, monkeypatch) -> None:
         assert session.query(Claim).count() == 1
         assert session.query(ClaimEvidence).count() == 1
         assert session.query(ClaimValidationEvaluation).count() == 0
+
+
+def _profitability_payload() -> dict:
+    return {
+        "objective": "Minimize time to credible positive expectancy.",
+        "capital_scenarios": [
+            {
+                "capital_usd": 2000,
+                "max_notional_exposure_usd": 2000,
+                "risk_per_trade_pct": 1,
+                "max_drawdown_pct": _range_payload(5, 15, "percent"),
+                "liquidation_risk": "none from leverage in unlevered scenario",
+                "leverage_note": "unlevered capital scenario",
+            },
+            {
+                "capital_usd": 2000,
+                "max_notional_exposure_usd": 10000,
+                "risk_per_trade_pct": 1,
+                "max_drawdown_pct": _range_payload(8, 25, "percent"),
+                "liquidation_risk": "material if sizing ignores liquidation distance",
+                "leverage_note": "5x notional exposure is analysis only",
+            },
+        ],
+        "candidates": [
+            {
+                "path_id": "existing-dashboard-strategy",
+                "path_type": "EXISTING_STRATEGY",
+                "title": "Existing dashboard strategy hardening",
+                "thesis": (
+                    "Existing Dashboard strategies and backtest engine are closer to "
+                    "paper validation than a greenfield Arbitrage engine."
+                ),
+                "evidence_quality": "PRELIMINARY",
+                "evidence_refs": [
+                    "Trading Dashboard:server/strategies/index.js",
+                    "Trading Dashboard:server/services/backtestEngine.js",
+                ],
+                "blockers": [],
+                "time_to_paper_validation_days": _range_payload(2, 7, "days"),
+                "time_to_controlled_live_validation_days": _range_payload(14, 45, "days"),
+                "engineering_effort_days": _range_payload(1, 3, "days"),
+                "research_confidence": 0.58,
+                "capital_required_usd": _range_payload(2000, 2000, "usd"),
+                "expected_monthly_return_pct": _range_payload(1, 6, "percent"),
+                "expected_drawdown_pct": _range_payload(5, 18, "percent"),
+                "tail_risk": "not yet measured",
+                "operational_complexity": 2,
+                "data_requirements": ["OHLCV history", "fees", "spread/slippage"],
+                "infrastructure_requirements": ["paper-validation harness"],
+                "dependency_risk": "medium",
+            },
+            {
+                "path_id": "greenfield-arbitrage",
+                "path_type": "ARBITRAGE",
+                "title": "Greenfield Arbitrage Engine",
+                "thesis": (
+                    "Arbitrage may be viable but needs fee, spread, latency, inventory "
+                    "and execution-risk evidence first."
+                ),
+                "evidence_quality": "INSUFFICIENT",
+                "evidence_refs": [],
+                "blockers": ["No Arbitrage repository exists in local DFG state."],
+                "time_to_paper_validation_days": _range_payload(8, 18, "days"),
+                "time_to_controlled_live_validation_days": _range_payload(30, 90, "days"),
+                "engineering_effort_days": _range_payload(8, 15, "days"),
+                "research_confidence": 0.25,
+                "capital_required_usd": _range_payload(2000, 5000, "usd"),
+                "expected_monthly_return_pct": _range_payload(1, 10, "percent"),
+                "expected_drawdown_pct": _range_payload(8, 30, "percent"),
+                "tail_risk": "partial fills, inventory fragmentation, and exchange/API risk unmeasured",
+                "operational_complexity": 5,
+                "data_requirements": ["multi-venue order books", "fees", "funding", "withdrawal rules"],
+                "infrastructure_requirements": ["market-data normalization", "simulation", "execution-risk model"],
+                "dependency_risk": "high",
+            },
+        ],
+    }
+
+
+def _range_payload(low: float, high: float, unit: str) -> dict:
+    return {
+        "low": low,
+        "high": high,
+        "unit": unit,
+        "confidence": 0.5,
+        "rationale": "CLI test fixture",
+    }

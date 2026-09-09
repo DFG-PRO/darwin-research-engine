@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from pathlib import Path
 
@@ -76,6 +77,7 @@ from darwin.planning import (
     ResearchPlanner,
     ResearchPlanningRequest,
 )
+from darwin.profitability import ProfitabilityComparisonRequest, ProfitabilityPathComparisonService
 from darwin.research import ResearchService, ResearchServiceError
 from darwin.research_loop import (
     ResearchLoopBudgets,
@@ -92,6 +94,7 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 research_app = typer.Typer(help="Research run persistence smoke commands.")
+profitability_app = typer.Typer(help="Evidence-aware profitability comparison commands.")
 
 
 @app.callback()
@@ -420,6 +423,56 @@ def _format_overview_text(overview) -> str:
     if overview.warnings:
         lines.append("Warnings: " + ", ".join(overview.warnings))
     lines.append(f"Next action: {overview.operator_next_action}")
+    return "\n".join(lines)
+
+
+@profitability_app.command("compare")
+def compare_profitability_paths(
+    input_file: Path = typer.Argument(..., exists=True, file_okay=True, dir_okay=False, readable=True),
+    output_format: str = typer.Option(
+        "text",
+        "--format",
+        help="Output format: text or json.",
+    ),
+) -> None:
+    """Compare supplied candidate paths without mutating Darwin research state."""
+
+    normalized_format = output_format.strip().lower()
+    if normalized_format not in {"text", "json"}:
+        typer.echo(f"Profitability comparison failed: Unsupported output format: {output_format}")
+        raise typer.Exit(code=1)
+    try:
+        payload = json.loads(input_file.read_text(encoding="utf-8"))
+        request = ProfitabilityComparisonRequest.model_validate(payload)
+        result = ProfitabilityPathComparisonService().compare(request)
+    except (OSError, json.JSONDecodeError, ValidationError, ValueError) as exc:
+        typer.echo(f"Profitability comparison failed: {exc}")
+        raise typer.Exit(code=1) from exc
+    if normalized_format == "json":
+        typer.echo(result.model_dump_json(indent=2))
+    else:
+        typer.echo(_format_profitability_comparison_text(result))
+
+
+def _format_profitability_comparison_text(result) -> str:
+    lines = [
+        f"Fastest defensible path: {result.fastest_defensible_path or 'NONE'}",
+        f"Secondary path: {result.secondary_path or 'NONE'}",
+        "7-10 percent monthly evidence: "
+        f"{result.seven_to_ten_percent_monthly_evidence}",
+        "Ranked paths:",
+    ]
+    for item in result.ranked_paths:
+        lines.append(
+            f"- {item.rank}. {item.path_id} [{item.status.value}] "
+            f"score={item.score} evidence={item.evidence_quality.value}"
+        )
+        if item.uncertainty:
+            lines.append("  Uncertainty: " + "; ".join(item.uncertainty))
+    if result.rejected_or_deferred_paths:
+        lines.append("Deferred/rejected: " + ", ".join(result.rejected_or_deferred_paths))
+    if result.warnings:
+        lines.append("Warnings: " + "; ".join(result.warnings))
     return "\n".join(lines)
 
 
@@ -1342,6 +1395,7 @@ def _echo_plan_summary(session, settings, proposal_id: str | uuid.UUID) -> None:
 
 
 app.add_typer(research_app, name="research")
+app.add_typer(profitability_app, name="profitability")
 
 
 def main() -> None:
