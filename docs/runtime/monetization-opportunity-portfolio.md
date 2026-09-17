@@ -263,6 +263,22 @@ Incoming evidence from all channels enters Darwin via `EvidenceIntakeAdapter` in
 - Rejects missing sources, empty statements, inverted ranges (`range_min > range_max`), and negative inputs for non-negative metrics.
 - Converts canonical Darwin `EvidenceRead` and `ClaimRead` objects into normalized `MetricEvidenceUnit` records.
 
+### Portfolio Proposal Engine Architecture
+Darwin prevents research loops from automatically mutating canonical opportunities through `PortfolioProposalEngine` in `darwin.monetization.proposal`.
+- Acts as the safety boundary: evidence and readiness assessments evaluate to explicit, reviewed proposals rather than direct state mutation.
+- Generates `PortfolioMetricProposal` records with five discrete deterministic actions:
+  - `KEEP_NONE`: Default safe action when evidence is absent, insufficient, or lacks empirical conversion foundations. Retains `None` to prevent false precision.
+  - `PROPOSE_VALUE`: Justified point value supported by verifiable contracts or confirmed assets.
+  - `PROPOSE_RANGE`: Bounded candidate range derived from empirical testing, pricing benchmarks, and platform fees.
+  - `FLAG_CONFLICT`: Contradictory evidence detected across sources; requires human review with zero silent selection.
+  - `BLOCKED`: Upstream opportunity blockers active; rejects proposal generation.
+- Enforces strict derivation gates:
+  - Market prices alone propose `KEEP_NONE` for expected revenue.
+  - Technical capabilities alone propose `KEEP_NONE` for commercial revenue.
+  - Revenue ranges strictly require empirical conversion + pricing + platform fee evidence.
+  - Mismatched or stale jurisdictions fail closed with `KEEP_NONE`.
+  - All proposals default to `requires_human_review = True`.
+
 ### Limitations
 1. Baseline fixture reflects pre-research uncertainty: no opportunity is marked actionable without validated numbers.
 2. Value-of-information (VOI) weighting is deferred to research backlog prioritization.

@@ -30,6 +30,12 @@ from darwin.monetization.portfolio import (
     PORTFOLIO_01_REQUEST,
     build_portfolio_01_request,
 )
+from darwin.monetization.proposal import (
+    PortfolioMetricProposal,
+    PortfolioProposalBatch,
+    PortfolioProposalEngine,
+    ProposalAction,
+)
 from darwin.monetization.readiness import (
     MetricEvidenceUnit,
     MetricReadinessAssessment,
@@ -57,6 +63,10 @@ __all__ = [
     "OpportunityStatus",
     "PORTFOLIO_01_REQUEST",
     "PackageObjectiveType",
+    "PortfolioMetricProposal",
+    "PortfolioProposalBatch",
+    "PortfolioProposalEngine",
+    "ProposalAction",
     "RankedMonetizationOpportunity",
     "ResearchPackage",
     "ResearchPackageAdapter",
