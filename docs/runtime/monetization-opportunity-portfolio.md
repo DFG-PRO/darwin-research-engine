@@ -279,6 +279,14 @@ Darwin prevents research loops from automatically mutating canonical opportuniti
   - Mismatched or stale jurisdictions fail closed with `KEEP_NONE`.
   - All proposals default to `requires_human_review = True`.
 
+### Operator Input Contracts Architecture
+Darwin standardizes operator evidence intake through structured schemas in `darwin.monetization.operator`:
+- `CinemaInventoryManifest`: Captures owned camera and cinema production assets (`CinemaEquipmentItem`) with category, manufacturer, model, quantity, mount, condition, and replacement value. Serial numbers are strictly optional for economic modeling.
+- `FPLabsOperatorIntake`: Captures committed Daniel hours (first 30 and 90 days) and historical delivered projects (`FPLabsHistoricalProject`) with verified client billings, hours delivered, and repeat client status. Arbitrary desired pricing is excluded as strategy rather than historical empirical evidence.
+- `FPCCCommunityMetrics`: Captures Telegram channel subscriber numbers, average post views, click-through volume, affiliate conversions, monthly affiliate payouts, and VIP subscriber retention/churn.
+- `CreatorAccountMetrics`: Captures social video accounts (TikTok, YouTube), follower counts, monthly video impressions, and creator fund/affiliate monetization eligibility.
+- Each intake contract provides a deterministic `.to_evidence_units()` method to emit normalized `MetricEvidenceUnit` records directly into the monetization evidence pipeline.
+
 ### Limitations
 1. Baseline fixture reflects pre-research uncertainty: no opportunity is marked actionable without validated numbers.
 2. Value-of-information (VOI) weighting is deferred to research backlog prioritization.

@@ -26,6 +26,17 @@ from darwin.monetization.intake import (
     IntakeClaimType,
     IntakeSourceType,
 )
+from darwin.monetization.operator import (
+    CinemaEquipmentItem,
+    CinemaInventoryManifest,
+    CreatorAccountMetrics,
+    EquipmentCategory,
+    EquipmentCondition,
+    FPCCCommunityMetrics,
+    FPLabsHistoricalProject,
+    FPLabsOperatorIntake,
+    OwnershipStatus,
+)
 from darwin.monetization.portfolio import (
     PORTFOLIO_01_REQUEST,
     build_portfolio_01_request,
@@ -45,9 +56,17 @@ from darwin.monetization.readiness import (
 from darwin.monetization.service import MonetizationOpportunityPortfolioService
 
 __all__ = [
+    "CinemaEquipmentItem",
+    "CinemaInventoryManifest",
+    "CreatorAccountMetrics",
     "EpistemicClass",
+    "EquipmentCategory",
+    "EquipmentCondition",
     "EvidenceIntakeAdapter",
     "EvidenceIntakePayload",
+    "FPCCCommunityMetrics",
+    "FPLabsHistoricalProject",
+    "FPLabsOperatorIntake",
     "IntakeClaimType",
     "IntakeSourceType",
     "MetricEvidenceUnit",
