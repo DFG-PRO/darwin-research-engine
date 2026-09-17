@@ -243,6 +243,18 @@ It deterministically assesses whether accumulated claims and evidence units are 
 - `BLOCKED_BY_DEPENDENCY`: Opportunity has active unresolved blockers.
 The engine strictly enforces that external market pricing benchmarks alone cannot unlock expected net revenue projections without empirical conversion or contracted volume.
 
+### Research Package Adapter Architecture
+Darwin connects compressed research packages to execution channels via `ResearchPackageAdapter` in `darwin.monetization.adapter`.
+- Converts each `ResearchPackage` into an actionable `ResearchPackageObjective` while maintaining 100% provenance back to `atomic_target_ids`, `package_id`, and `opportunity_id`.
+- Categorizes research execution into four distinct mechanisms via `PackageObjectiveType`:
+  - `OPERATOR_INTAKE`: Internal operator commitments, owned equipment inventory, past deliverables, or subscriber metrics.
+  - `INTERNAL_AUDIT`: Codebase inspection, repository audits, or existing architectural validation.
+  - `WEB_RESEARCH`: Primary web sources, platform fee schedules, and market pricing benchmarks.
+  - `EMPIRICAL_VALIDATION`: Forward paper validation, execution latency tests, or empirical conversion measurements.
+- Strictly prevents invalid web substitution: packages marked with `requires_operator_input` refuse conversion to web research loops and emit structured operator instructions instead.
+- Retains jurisdiction tags (e.g. `US` for Section 8 HUD FMRs, `LATAM` for prediction markets).
+- Enforces opportunity blocker gates: blocked objectives cannot launch research loops until upstream blockers are resolved.
+
 ### Limitations
 1. Baseline fixture reflects pre-research uncertainty: no opportunity is marked actionable without validated numbers.
 2. Value-of-information (VOI) weighting is deferred to research backlog prioritization.
