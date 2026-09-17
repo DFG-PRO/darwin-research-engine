@@ -164,7 +164,7 @@ It is a decision-support capability only.
 ## Validation
 
 The monetization portfolio implementation is verified via deterministic unit and
-integration tests in `tests/test_monetization.py`.
+integration tests in `tests/test_monetization.py` and `tests/test_portfolio_01.py`.
 Tests verify:
 - Complete no-imputation behavior for omitted economic ranges;
 - Positive evidence gates for `ACTIONABLE` state;
@@ -172,7 +172,55 @@ Tests verify:
 - Withholding EV when capital is at risk without modeled loss probability;
 - Identification and aliasing of `research_targets`;
 - Blocker fail-closed enforcement;
-- Identity uniqueness and range boundary validation.
+- Identity uniqueness and range boundary validation;
+- Strict compliance with Portfolio 01 baseline invariants (12 opportunities, zero actionable, 3 blocked, 9 needs-evidence).
+
+## Portfolio 01 Baseline Specification
+
+Portfolio 01 establishes Darwin's canonical comparison baseline across 12 bounded DFG monetization paths.
+
+### Purpose
+The objective of Portfolio 01 is to evaluate real DFG commercial opportunities against a unified, evidence-aware decision framework without converting hypotheses into facts or imputing missing economic data.
+
+### The 12 Canonical Opportunities
+1. `fp-labs-external-services`: Technical consulting, software engineering, and workflow automation services for external clients.
+2. `commercial-product-photography`: Commercial studio, e-commerce, and product photography services.
+3. `cinema-collection-equipment-rental`: Peer-to-peer and commercial rental of high-end cinema and camera production equipment.
+4. `production-engine-acceleration`: Creative media production workflow acceleration using automated rendering and batch workflow tools from Billy Production Engine.
+5. `trading-strategy-hardening`: Hardening and paper-validating existing EMA trend, RSI mean-reversion, and VWAP strategies from Trading Dashboard via Trade Executor infrastructure.
+6. `fpcriptoclub-monetization`: Monetization of crypto community audience through affiliate programs, VIP subscription channels, and digital products.
+7. `billy-the-trader`: Fictional automated trading character brand monetization via synthetic media and automated content generation.
+8. `airbnb-experiences-photography`: Local guided photo-walks and photography experiences booked via Airbnb Experiences.
+9. `section-8-real-estate`: Acquisition, renovation, and operation of residential properties subsidized under the Section 8 housing choice voucher program.
+10. `prediction-markets-latam`: Exchange or platform concept for Latin American event contracts and prediction markets.
+11. `arbitrage-engine`: Systematic cross-venue or statistical arbitrage strategies across digital asset exchanges.
+12. `tiktok-shop-affiliate-creative`: E-commerce affiliate commissions on TikTok Shop driven by AI-assisted product creative.
+
+### No-Imputation Invariant & Unknown Semantics
+- All 16 economic dimensions (time to first dollar, net revenue ranges for 30/90/180 days, upfront capital, capital at risk, Daniel hours for 30/90 days, margins, success probability, and qualitative risk/complexity scores) remain strictly `None` until validated empirical evidence exists.
+- Darwin enforces zero economic imputation: missing values are never replaced with placeholder defaults or speculative estimates.
+- Derived metrics (`score`, `expected_value_90_day_usd`, `revenue_per_daniel_hour_90_day`, `revenue_per_daniel_hour_30_day`) evaluate to `None` when required inputs are absent.
+
+### Evidence Provenance Rules
+- Concrete documentation references (`evidence_refs`) are included only when verifiable provenance exists in the repository tree (e.g. `docs/runtime/profitability-decision-framework.md` for `trading-strategy-hardening` and `arbitrage-engine`).
+- Opportunities without existing canonical documentation have empty `evidence_refs`. Ad-hoc search conclusions or unverified claims are never accepted as canonical evidence.
+
+### Status and Actionability Gates
+- Zero opportunities qualify as `ACTIONABLE` at baseline: an opportunity cannot become actionable through missing evidence or absence of contrary proof.
+- 3 opportunities evaluate to `BLOCKED`:
+  - `arbitrage-engine`: Blocked by the Arbitrage Dependency Gate (requires validated market and liquidity evidence before implementation).
+  - `prediction-markets-latam`: Blocked by regulatory and licensing requirements for wagering/event contracts.
+  - `section-8-real-estate`: Blocked by upfront capital acquisition and financing prerequisites.
+- The remaining 9 opportunities evaluate to `NEEDS_EVIDENCE`.
+
+### Research Target Semantics
+- Every unmeasured economic dimension and missing evidence requirement for `NEEDS_EVIDENCE` opportunities is systematically emitted as a machine-readable target in `result.research_targets` using `{opportunity_id}:{missing_metric}` format.
+- These targets form the direct input to `RESEARCH_BACKLOG_01`.
+
+### Limitations
+1. Baseline fixture reflects pre-research uncertainty: no opportunity is marked actionable without validated numbers.
+2. Value-of-information (VOI) weighting is deferred to research backlog prioritization.
+3. Blockers are strictly enforced and cannot be overridden by speculative return projections.
 
 ## Current Roadmap
 
@@ -181,16 +229,15 @@ NOW:
 1. establish deterministic opportunity representation;
 2. preserve unknown values and evidence quality (no imputation);
 3. expose missing research inputs (`research_targets`);
-4. compare time-to-first-dollar, capital, revenue, Daniel-hours (matched horizons), risk, reuse, and automation;
-5. validate against representative DFG opportunity fixtures.
+4. represent Portfolio 01 baseline across 12 DFG opportunities with explicit unknowns;
+5. validate against representative DFG opportunity fixtures and Portfolio 01 invariants.
 
 NEXT:
 
-1. connect research targets to Darwin research planning (Research Backlog 01);
-2. represent Portfolio 01 baseline with explicit unknowns;
-3. execute first bounded evidence-gathering batch;
-4. add bull/base/bear scenario representation;
-5. add explicit 30/90/180-day net-revenue confidence reporting.
+1. connect research targets to Darwin research planning (`RESEARCH_BACKLOG_01`);
+2. execute first bounded evidence-gathering batch for high-impact unknowns;
+3. add bull/base/bear scenario representation;
+4. add explicit 30/90/180-day net-revenue confidence reporting.
 
 LATER:
 
