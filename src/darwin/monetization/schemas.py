@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -45,14 +46,15 @@ class MonetizationOpportunity(BaseModel):
     blockers: list[str] = Field(default_factory=list)
     unknowns: list[str] = Field(default_factory=list)
 
-    time_to_first_dollar_days: OpportunityRange
-    expected_30_day_net_revenue_usd: OpportunityRange
-    expected_90_day_net_revenue_usd: OpportunityRange
-    expected_180_day_net_revenue_usd: OpportunityRange
+    time_to_first_dollar_days: OpportunityRange | None = None
+    expected_30_day_net_revenue_usd: OpportunityRange | None = None
+    expected_90_day_net_revenue_usd: OpportunityRange | None = None
+    expected_180_day_net_revenue_usd: OpportunityRange | None = None
 
-    upfront_capital_usd: OpportunityRange
-    capital_at_risk_usd: OpportunityRange
-    daniel_hours_first_30_days: OpportunityRange
+    upfront_capital_usd: OpportunityRange | None = None
+    capital_at_risk_usd: OpportunityRange | None = None
+    daniel_hours_first_30_days: OpportunityRange | None = None
+    daniel_hours_first_90_days: OpportunityRange | None = None
 
     gross_margin_pct: OpportunityRange | None = None
     recurring_revenue_pct: OpportunityRange | None = None
@@ -71,6 +73,18 @@ class MonetizationOpportunity(BaseModel):
         if not value.strip():
             raise ValueError("value cannot be blank")
         return value
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_daniel_hours_90(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "daniel_hours_90_days" in data and "daniel_hours_first_90_days" not in data:
+                data["daniel_hours_first_90_days"] = data["daniel_hours_90_days"]
+        return data
+
+    @property
+    def daniel_hours_90_days(self) -> OpportunityRange | None:
+        return self.daniel_hours_first_90_days
 
 
 class MonetizationPortfolioRequest(BaseModel):
@@ -103,6 +117,7 @@ class RankedMonetizationOpportunity(BaseModel):
     score: float | None
     expected_value_90_day_usd: float | None
     revenue_per_daniel_hour_90_day: float | None
+    revenue_per_daniel_hour_30_day: float | None = None
 
     evidence_quality: OpportunityEvidenceQuality
     rationale: list[str] = Field(default_factory=list)
@@ -119,5 +134,20 @@ class MonetizationPortfolioResult(BaseModel):
 
     ranked_opportunities: list[RankedMonetizationOpportunity]
 
+    research_targets: list[str] = Field(default_factory=list)
     highest_value_research_targets: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _sync_research_targets(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            targets = data.get("research_targets")
+            legacy = data.get("highest_value_research_targets")
+            if targets is None and legacy is not None:
+                data["research_targets"] = legacy
+            elif legacy is None and targets is not None:
+                data["highest_value_research_targets"] = targets
+            elif targets is not None and legacy is not None and not legacy:
+                data["highest_value_research_targets"] = targets
+        return data

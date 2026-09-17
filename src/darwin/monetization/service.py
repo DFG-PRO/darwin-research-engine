@@ -73,6 +73,7 @@ class MonetizationOpportunityPortfolioService:
             needs_evidence_opportunity_ids=needs_evidence,
             blocked_opportunity_ids=blocked,
             ranked_opportunities=normalized,
+            research_targets=research_targets,
             highest_value_research_targets=research_targets,
             warnings=warnings,
         )
@@ -94,6 +95,21 @@ def _evaluate(
     }:
         missing_evidence.append("stronger_market_or_operating_evidence")
 
+    core_economic_inputs = {
+        "time_to_first_dollar_days": opportunity.time_to_first_dollar_days,
+        "expected_30_day_net_revenue_usd": opportunity.expected_30_day_net_revenue_usd,
+        "expected_90_day_net_revenue_usd": opportunity.expected_90_day_net_revenue_usd,
+        "expected_180_day_net_revenue_usd": opportunity.expected_180_day_net_revenue_usd,
+        "upfront_capital_usd": opportunity.upfront_capital_usd,
+        "capital_at_risk_usd": opportunity.capital_at_risk_usd,
+        "daniel_hours_first_30_days": opportunity.daniel_hours_first_30_days,
+        "daniel_hours_first_90_days": opportunity.daniel_hours_first_90_days,
+    }
+
+    for name, value in core_economic_inputs.items():
+        if value is None:
+            missing_evidence.append(name)
+
     optional_inputs = {
         "probability_of_success": opportunity.probability_of_success,
         "automation_potential": opportunity.automation_potential,
@@ -109,6 +125,8 @@ def _evaluate(
         if value is None:
             missing_evidence.append(name)
 
+    score = _score(opportunity)
+
     if opportunity.blockers:
         status = OpportunityStatus.BLOCKED
         uncertainty.extend(opportunity.blockers)
@@ -119,6 +137,8 @@ def _evaluate(
             OpportunityEvidenceQuality.HYPOTHESIS,
         }
         or not opportunity.evidence_refs
+        or score is None
+        or opportunity.expected_90_day_net_revenue_usd is None
         or opportunity.probability_of_success is None
     ):
         status = OpportunityStatus.NEEDS_EVIDENCE
@@ -126,62 +146,103 @@ def _evaluate(
         status = OpportunityStatus.ACTIONABLE
 
     expected_value_90 = None
-    if opportunity.probability_of_success is not None:
-        midpoint_90 = _midpoint(
-            opportunity.expected_90_day_net_revenue_usd.low,
-            opportunity.expected_90_day_net_revenue_usd.high,
+    if (
+        opportunity.probability_of_success is not None
+        and opportunity.expected_90_day_net_revenue_usd is not None
+        and opportunity.capital_at_risk_usd is not None
+    ):
+        midpoint_capital_at_risk = _midpoint(
+            opportunity.capital_at_risk_usd.low,
+            opportunity.capital_at_risk_usd.high,
         )
-        expected_value_90 = round(
-            midpoint_90 * opportunity.probability_of_success
-            - _midpoint(
-                opportunity.capital_at_risk_usd.low,
-                opportunity.capital_at_risk_usd.high,
-            ),
-            2,
-        )
-
-    revenue_per_hour = None
-    midpoint_hours = _midpoint(
-        opportunity.daniel_hours_first_30_days.low,
-        opportunity.daniel_hours_first_30_days.high,
-    )
-    if midpoint_hours > 0:
-        revenue_per_hour = round(
-            _midpoint(
+        if midpoint_capital_at_risk == 0.0:
+            midpoint_90 = _midpoint(
                 opportunity.expected_90_day_net_revenue_usd.low,
                 opportunity.expected_90_day_net_revenue_usd.high,
             )
-            / midpoint_hours,
-            2,
+            expected_value_90 = round(
+                midpoint_90 * opportunity.probability_of_success,
+                2,
+            )
+        else:
+            expected_value_90 = None
+            uncertainty.append(
+                f"capital_at_risk_usd is non-zero ({midpoint_capital_at_risk}) but loss probability distribution is unmodeled; expected_value_90_day_usd withheld to avoid inventing loss probability."
+            )
+
+    revenue_per_hour_90 = None
+    if (
+        opportunity.expected_90_day_net_revenue_usd is not None
+        and opportunity.daniel_hours_first_90_days is not None
+    ):
+        midpoint_hours_90 = _midpoint(
+            opportunity.daniel_hours_first_90_days.low,
+            opportunity.daniel_hours_first_90_days.high,
         )
+        if midpoint_hours_90 > 0:
+            midpoint_rev_90 = _midpoint(
+                opportunity.expected_90_day_net_revenue_usd.low,
+                opportunity.expected_90_day_net_revenue_usd.high,
+            )
+            revenue_per_hour_90 = round(midpoint_rev_90 / midpoint_hours_90, 2)
 
-    score = _score(opportunity)
+    revenue_per_hour_30 = None
+    if (
+        opportunity.expected_30_day_net_revenue_usd is not None
+        and opportunity.daniel_hours_first_30_days is not None
+    ):
+        midpoint_hours_30 = _midpoint(
+            opportunity.daniel_hours_first_30_days.low,
+            opportunity.daniel_hours_first_30_days.high,
+        )
+        if midpoint_hours_30 > 0:
+            midpoint_rev_30 = _midpoint(
+                opportunity.expected_30_day_net_revenue_usd.low,
+                opportunity.expected_30_day_net_revenue_usd.high,
+            )
+            revenue_per_hour_30 = round(midpoint_rev_30 / midpoint_hours_30, 2)
 
-    rationale.extend(
-        [
-            f"evidence={opportunity.evidence_quality.value}",
+    rationale.append(f"evidence={opportunity.evidence_quality.value}")
+    if opportunity.time_to_first_dollar_days is not None:
+        rationale.append(
             (
                 "time_to_first_dollar_days="
                 f"{opportunity.time_to_first_dollar_days.low}-"
                 f"{opportunity.time_to_first_dollar_days.high}"
-            ),
+            )
+        )
+    if opportunity.expected_90_day_net_revenue_usd is not None:
+        rationale.append(
             (
                 "expected_90_day_net_revenue_usd="
                 f"{opportunity.expected_90_day_net_revenue_usd.low}-"
                 f"{opportunity.expected_90_day_net_revenue_usd.high}"
-            ),
+            )
+        )
+    if opportunity.upfront_capital_usd is not None:
+        rationale.append(
             (
                 "upfront_capital_usd="
                 f"{opportunity.upfront_capital_usd.low}-"
                 f"{opportunity.upfront_capital_usd.high}"
-            ),
+            )
+        )
+    if opportunity.daniel_hours_first_30_days is not None:
+        rationale.append(
             (
                 "daniel_hours_first_30_days="
                 f"{opportunity.daniel_hours_first_30_days.low}-"
                 f"{opportunity.daniel_hours_first_30_days.high}"
-            ),
-        ]
-    )
+            )
+        )
+    if opportunity.daniel_hours_first_90_days is not None:
+        rationale.append(
+            (
+                "daniel_hours_first_90_days="
+                f"{opportunity.daniel_hours_first_90_days.low}-"
+                f"{opportunity.daniel_hours_first_90_days.high}"
+            )
+        )
 
     if missing_evidence:
         uncertainty.append(
@@ -195,7 +256,8 @@ def _evaluate(
         status=status,
         score=score,
         expected_value_90_day_usd=expected_value_90,
-        revenue_per_daniel_hour_90_day=revenue_per_hour,
+        revenue_per_daniel_hour_90_day=revenue_per_hour_90,
+        revenue_per_daniel_hour_30_day=revenue_per_hour_30,
         evidence_quality=opportunity.evidence_quality,
         rationale=rationale,
         uncertainty=uncertainty,
@@ -212,7 +274,11 @@ def _score(opportunity: MonetizationOpportunity) -> float | None:
         opportunity.platform_dependency_risk,
         opportunity.operational_complexity,
     )
-    if any(value is None for value in required):
+    if (
+        opportunity.time_to_first_dollar_days is None
+        or opportunity.upfront_capital_usd is None
+        or any(value is None for value in required)
+    ):
         return None
 
     evidence_score = _EVIDENCE_SCORE[opportunity.evidence_quality]
