@@ -164,8 +164,8 @@ It is a decision-support capability only.
 ## Validation
 
 The monetization portfolio implementation is verified via deterministic unit and
-integration tests in `tests/test_monetization.py`, `tests/test_portfolio_01.py`, and
-`tests/test_target_grouper.py`.
+integration tests in `tests/test_monetization.py`, `tests/test_portfolio_01.py`,
+`tests/test_target_grouper.py`, and `tests/test_metric_readiness.py`.
 Tests verify:
 - Complete no-imputation behavior for omitted economic ranges;
 - Positive evidence gates for `ACTIONABLE` state;
@@ -175,7 +175,8 @@ Tests verify:
 - Blocker fail-closed enforcement;
 - Identity uniqueness and range boundary validation;
 - Strict compliance with Portfolio 01 baseline invariants (12 opportunities, zero actionable, 3 blocked, 9 needs-evidence);
-- Deterministic research target compression into structured research packages with zero atomic target loss.
+- Deterministic research target compression into structured research packages with zero atomic target loss;
+- Epistemic metric readiness assessment preventing premature revenue unlocking from market benchmarks alone.
 
 ## Portfolio 01 Baseline Specification
 
@@ -230,6 +231,17 @@ To prevent operational fragmentation across 160 independent atomic tasks, Darwin
   - `EVIDENCE_PROVENANCE`: Explicit documentation references, market evidence baseline.
 - Produces structured `ResearchPackage` instances containing the opportunity ID, package ID, title, objective, and bundled atomic fields.
 - Achieves a ~5:1 compression ratio (reducing 160 atomic targets into 32 actionable research packages) with zero loss of atomic provenance or traceability.
+
+### Metric Readiness Engine Architecture
+Darwin enforces epistemic readiness gating via `MetricReadinessEngine` in `darwin.monetization.readiness`.
+It deterministically assesses whether accumulated claims and evidence units are epistemically sufficient to populate an opportunity field:
+- `READY_FOR_VALUE`: Concrete, verified point value justified by internal codebase or contract evidence.
+- `READY_FOR_RANGE`: Bounded quantitative range supported by empirical testing or platform terms.
+- `INSUFFICIENT_EVIDENCE`: Missing necessary evidentiary foundations.
+- `REQUIRES_OPERATOR_DATA`: Requires internal operator schedule, personal asset inventory, or rate confirmation.
+- `REQUIRES_EMPIRICAL_TEST`: Missing conversion, win rate, or sales cycle latency data.
+- `BLOCKED_BY_DEPENDENCY`: Opportunity has active unresolved blockers.
+The engine strictly enforces that external market pricing benchmarks alone cannot unlock expected net revenue projections without empirical conversion or contracted volume.
 
 ### Limitations
 1. Baseline fixture reflects pre-research uncertainty: no opportunity is marked actionable without validated numbers.
