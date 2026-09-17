@@ -164,7 +164,8 @@ It is a decision-support capability only.
 ## Validation
 
 The monetization portfolio implementation is verified via deterministic unit and
-integration tests in `tests/test_monetization.py` and `tests/test_portfolio_01.py`.
+integration tests in `tests/test_monetization.py`, `tests/test_portfolio_01.py`, and
+`tests/test_target_grouper.py`.
 Tests verify:
 - Complete no-imputation behavior for omitted economic ranges;
 - Positive evidence gates for `ACTIONABLE` state;
@@ -173,7 +174,8 @@ Tests verify:
 - Identification and aliasing of `research_targets`;
 - Blocker fail-closed enforcement;
 - Identity uniqueness and range boundary validation;
-- Strict compliance with Portfolio 01 baseline invariants (12 opportunities, zero actionable, 3 blocked, 9 needs-evidence).
+- Strict compliance with Portfolio 01 baseline invariants (12 opportunities, zero actionable, 3 blocked, 9 needs-evidence);
+- Deterministic research target compression into structured research packages with zero atomic target loss.
 
 ## Portfolio 01 Baseline Specification
 
@@ -216,6 +218,18 @@ The objective of Portfolio 01 is to evaluate real DFG commercial opportunities a
 ### Research Target Semantics
 - Every unmeasured economic dimension and missing evidence requirement for `NEEDS_EVIDENCE` opportunities is systematically emitted as a machine-readable target in `result.research_targets` using `{opportunity_id}:{missing_metric}` format.
 - These targets form the direct input to `RESEARCH_BACKLOG_01`.
+
+### Research Target Grouper & Compression Architecture
+To prevent operational fragmentation across 160 independent atomic tasks, Darwin provides a deterministic grouping service: `ResearchTargetGrouper` in `darwin.monetization.grouper`.
+- Clusters atomic targets into 6 cohesive categories:
+  - `PRICING_AND_REVENUE`: Net revenue ranges (30/90/180 days), gross margin, recurring revenue.
+  - `CAPITAL_AND_RISK`: Upfront capital, capital at risk.
+  - `OPERATIONAL_BANDWIDTH`: Time to first dollar, Daniel hours (30/90 days), operational complexity.
+  - `MARKET_AND_GOVERNANCE_RISK`: Success probability, legal compliance, platform dependency.
+  - `CAPABILITY_LEVERAGE`: Automation potential, DFG system reuse.
+  - `EVIDENCE_PROVENANCE`: Explicit documentation references, market evidence baseline.
+- Produces structured `ResearchPackage` instances containing the opportunity ID, package ID, title, objective, and bundled atomic fields.
+- Achieves a ~5:1 compression ratio (reducing 160 atomic targets into 32 actionable research packages) with zero loss of atomic provenance or traceability.
 
 ### Limitations
 1. Baseline fixture reflects pre-research uncertainty: no opportunity is marked actionable without validated numbers.

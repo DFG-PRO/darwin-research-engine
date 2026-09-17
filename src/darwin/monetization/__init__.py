@@ -9,6 +9,11 @@ from darwin.monetization.schemas import (
     OpportunityStatus,
     RankedMonetizationOpportunity,
 )
+from darwin.monetization.grouper import (
+    ResearchPackage,
+    ResearchTargetGrouper,
+    TargetCompressionResult,
+)
 from darwin.monetization.portfolio import (
     PORTFOLIO_01_REQUEST,
     build_portfolio_01_request,
@@ -25,5 +30,8 @@ __all__ = [
     "OpportunityStatus",
     "PORTFOLIO_01_REQUEST",
     "RankedMonetizationOpportunity",
+    "ResearchPackage",
+    "ResearchTargetGrouper",
+    "TargetCompressionResult",
     "build_portfolio_01_request",
 ]
