@@ -255,6 +255,14 @@ Darwin connects compressed research packages to execution channels via `Research
 - Retains jurisdiction tags (e.g. `US` for Section 8 HUD FMRs, `LATAM` for prediction markets).
 - Enforces opportunity blocker gates: blocked objectives cannot launch research loops until upstream blockers are resolved.
 
+### Evidence Intake Architecture
+Incoming evidence from all channels enters Darwin via `EvidenceIntakeAdapter` in `darwin.monetization.intake`.
+- Validates raw `EvidenceIntakePayload` instances across five canonical intake sources: `INTERNAL_REPOSITORY`, `OPERATOR`, `PRIMARY_WEB_SOURCE`, `EMPIRICAL_TEST`, and `EXTERNAL_MARKET_BENCHMARK`.
+- Generates deterministic hash identifiers (`EV_{hash}`) and content fingerprints using `sha256_text` to prevent duplicate ingestion and track provenance.
+- Enforces epistemic integrity: `EXTERNAL_MARKET_BENCHMARK` can never be classified as `FACT`; it remains strictly `SOURCE_CLAIM` or `DERIVED_VALUE`.
+- Rejects missing sources, empty statements, inverted ranges (`range_min > range_max`), and negative inputs for non-negative metrics.
+- Converts canonical Darwin `EvidenceRead` and `ClaimRead` objects into normalized `MetricEvidenceUnit` records.
+
 ### Limitations
 1. Baseline fixture reflects pre-research uncertainty: no opportunity is marked actionable without validated numbers.
 2. Value-of-information (VOI) weighting is deferred to research backlog prioritization.

@@ -19,6 +19,13 @@ from darwin.monetization.grouper import (
     ResearchTargetGrouper,
     TargetCompressionResult,
 )
+from darwin.monetization.intake import (
+    EpistemicClass,
+    EvidenceIntakeAdapter,
+    EvidenceIntakePayload,
+    IntakeClaimType,
+    IntakeSourceType,
+)
 from darwin.monetization.portfolio import (
     PORTFOLIO_01_REQUEST,
     build_portfolio_01_request,
@@ -32,6 +39,11 @@ from darwin.monetization.readiness import (
 from darwin.monetization.service import MonetizationOpportunityPortfolioService
 
 __all__ = [
+    "EpistemicClass",
+    "EvidenceIntakeAdapter",
+    "EvidenceIntakePayload",
+    "IntakeClaimType",
+    "IntakeSourceType",
     "MetricEvidenceUnit",
     "MetricReadinessAssessment",
     "MetricReadinessEngine",
